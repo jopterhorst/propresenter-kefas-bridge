@@ -1,0 +1,56 @@
+{
+  "name": "propresenter-kefas-electron",
+  "version": "1.0.0",
+  "description": "Bridge ProPresenter 7 lyrics to Kefas API",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win",
+    "build:linux": "electron-builder --linux"
+  },
+  "devDependencies": {
+    "electron": "^32.0.0",
+    "electron-builder": "^24.0.0"
+  },
+  "dependencies": {
+    "node-fetch": "^3.0.0"
+  },
+  "build": {
+    "appId": "com.propresenter-kefas.app",
+    "productName": "ProPresenter Kefas Bridge",
+    "files": [
+      "main.js",
+      "bridge.js",
+      "preload.js",
+      "renderer.html",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.utilities"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

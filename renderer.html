@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>ProPresenter → Kefas Bridge</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        margin: 16px;
+      }
+      .settings {
+        margin-bottom: 16px;
+        padding: 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background-color: #f9f9f9;
+      }
+      .settings h3 {
+        margin-top: 0;
+        margin-bottom: 8px;
+      }
+      .form-group {
+        margin-bottom: 8px;
+      }
+      label {
+        display: block;
+        margin-bottom: 4px;
+        font-weight: 500;
+      }
+      input[type="text"],
+      input[type="password"] {
+        width: 100%;
+        padding: 6px 8px;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+        box-sizing: border-box;
+      }
+      .controls {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+      button {
+        padding: 6px 12px;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      #log {
+        border: 1px solid #ccc;
+        padding: 8px;
+        height: 200px;
+        overflow: auto;
+        font-family: monospace;
+        font-size: 12px;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>ProPresenter → Kefas</h1>
+    
+    <div class="settings">
+      <h3>Settings</h3>
+      <div class="form-group">
+        <label for="tokenInput">Kefas API Token:</label>
+        <input 
+          type="password" 
+          id="tokenInput" 
+          placeholder="Enter your Kefas API token"
+        />
+      </div>
+      <button id="saveToken">Save Token</button>
+      <p style="font-size: 12px; color: #666; margin-top: 8px;">
+        Make sure ProPresenter is running with the network API enabled on port 1025.
+      </p>
+    </div>
+
+    <div class="controls">
+      <button id="start">Start Bridge</button>
+      <button id="stop">Stop Bridge</button>
+    </div>
+
+    <div id="log"></div>
+
+    <script>
+      const logEl = document.getElementById('log');
+      const startBtn = document.getElementById('start');
+      const stopBtn = document.getElementById('stop');
+      const tokenInput = document.getElementById('tokenInput');
+      const saveTokenBtn = document.getElementById('saveToken');
+
+      // Load token from localStorage on startup
+      function loadToken() {
+        const saved = localStorage.getItem('kefasToken');
+        if (saved) {
+          tokenInput.value = saved;
+        }
+      }
+
+      // Save token to localStorage
+      function saveTokenToStorage() {
+        const token = tokenInput.value.trim();
+        if (!token) {
+          appendLog('Error: Token cannot be empty.');
+          return;
+        }
+        localStorage.setItem('kefasToken', token);
+        appendLog('Token saved successfully.');
+      }
+
+      function appendLog(msg) {
+        const time = new Date().toLocaleTimeString();
+        logEl.textContent += `[${time}] ${msg}\n`;
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      window.bridgeAPI.onLog(appendLog);
+
+      saveTokenBtn.addEventListener('click', saveTokenToStorage);
+
+      startBtn.addEventListener('click', () => {
+        const token = localStorage.getItem('kefasToken');
+        if (!token) {
+          appendLog('Error: Please set your Kefas token first.');
+          return;
+        }
+        window.bridgeAPI.start(token);
+        appendLog('Start requested.');
+      });
+
+      stopBtn.addEventListener('click', () => {
+        window.bridgeAPI.stop();
+        appendLog('Stop requested.');
+      });
+
+      // Load token on page load
+      loadToken();
+    </script>
+  </body>
+</html>
