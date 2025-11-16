@@ -224,7 +224,7 @@
         <div class="form-group">
           <label for="tokenInput">API Token</label>
           <input 
-            type="password" 
+            type="text" 
             id="tokenInput" 
             placeholder="Paste your Kefas API token"
           />
@@ -398,6 +398,11 @@
       }
 
       saveBtn.addEventListener('click', saveSettings);
+      
+      // Enable pasting on all input fields
+      document.querySelectorAll('input').forEach(input => {
+        input.addEventListener('paste', (e) => e.stopPropagation());
+      });
       
       // Initialize
       loadSettings();

@@ -17,6 +17,7 @@ function createMainWindow() {
     resizable: false,
     webPreferences: {
       preload: path.join(__dirname, '../renderer/preload.js'),
+      sandbox: false,
     },
   });
 
@@ -40,6 +41,7 @@ function createSettingsWindow() {
     minHeight: 600,
     webPreferences: {
       preload: path.join(__dirname, '../renderer/preload.js'),
+      sandbox: false,
     },
   });
 
