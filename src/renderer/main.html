@@ -204,6 +204,64 @@
         color: #a1a1a6;
       }
 
+      .connection-indicator {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        background: rgba(0, 0, 0, 0.04);
+        border-radius: 8px;
+        margin-bottom: 12px;
+        font-size: 12px;
+      }
+
+      .connection-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+
+      .connection-dot.connected {
+        background: #00d084;
+        box-shadow: 0 0 8px rgba(0, 208, 132, 0.5);
+        animation: pulse 2s ease-in-out infinite;
+      }
+
+      .connection-dot.connecting {
+        background: #ff9500;
+        animation: blink 1s ease-in-out infinite;
+      }
+
+      .connection-dot.disconnected {
+        background: #a1a1a6;
+      }
+
+      .connection-dot.error {
+        background: #ff3b30;
+      }
+
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+
+      @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+      }
+
+      .connection-text {
+        flex: 1;
+        color: #1d1d1f;
+        font-weight: 500;
+      }
+
+      .connection-details {
+        color: #a1a1a6;
+        font-size: 11px;
+      }
+
       /* Dark mode support */
       @media (prefers-color-scheme: dark) {
         body {
@@ -241,6 +299,14 @@
         .info-text {
           color: #6f6f77;
         }
+
+        .connection-text {
+          color: #f5f5f7;
+        }
+
+        .connection-indicator {
+          background: rgba(255, 255, 255, 0.05);
+        }
       }
     </style>
   </head>
@@ -257,11 +323,13 @@
           <div class="section-icon">▶</div>
           Bridge Control
         </h3>
-        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
-          <span class="status-badge status-idle" id="statusBadge">Inactive</span>
-          <span id="statusText" style="font-size: 13px; color: #a1a1a6;">Ready to start</span>
+        <div class="connection-indicator" id="connectionIndicator">
+          <div class="connection-dot disconnected" id="connectionDot"></div>
+          <div style="flex: 1;">
+            <div class="connection-text" id="connectionText">Not connected</div>
+            <div class="connection-details" id="connectionDetails">Start bridge to connect</div>
+          </div>
         </div>
-        <p class="info-text">ProPresenter 7 with REST API polling. Uses /v1/status/slide endpoint. Configured polling rate: <span id="currentPollRate" style="font-weight: 600; color: #ff9500;">5.0s</span></p>
         <div class="controls">
           <button class="btn-primary" id="start">Start Bridge</button>
           <button class="btn-secondary" id="stop">Stop Bridge</button>
@@ -288,11 +356,12 @@
       const logEl = document.getElementById('log');
       const startBtn = document.getElementById('start');
       const stopBtn = document.getElementById('stop');
-      const statusBadge = document.getElementById('statusBadge');
-      const statusText = document.getElementById('statusText');
-      const currentPollRate = document.getElementById('currentPollRate');
+      const connectionDot = document.getElementById('connectionDot');
+      const connectionText = document.getElementById('connectionText');
+      const connectionDetails = document.getElementById('connectionDetails');
 
       let bridgeRunning = false;
+      let connectionStatus = { status: 'disconnected', details: '', wsConnected: false };
 
       function appendLog(msg) {
         const time = new Date().toLocaleTimeString('en-US', { 
@@ -318,19 +387,39 @@
       }
 
       function updateConnectionStatus() {
-        statusBadge.className = 'status-badge';
-        
         if (bridgeRunning) {
-          statusBadge.classList.add('status-running');
-          statusBadge.textContent = 'Active';
-          const pollInterval = parseInt(localStorage.getItem('pollInterval') || '5000');
-          const pollRateSeconds = (pollInterval / 1000).toFixed(1);
-          statusText.textContent = `Polling ProPresenter every ${pollRateSeconds}s`;
-          currentPollRate.textContent = pollRateSeconds + 's';
+          // Update connection indicator
+          const statusMap = {
+            'connected': {
+              dotClass: 'connected',
+              text: 'WebSocket Connected',
+              details: connectionStatus.details || 'Real-time slide changes'
+            },
+            'connecting': {
+              dotClass: 'connecting',
+              text: 'Connecting...',
+              details: connectionStatus.details || 'Establishing WebSocket connection'
+            },
+            'error': {
+              dotClass: 'error',
+              text: 'Connection Error',
+              details: connectionStatus.details || 'Check ProPresenter settings'
+            },
+            'disconnected': {
+              dotClass: 'disconnected',
+              text: 'Disconnected',
+              details: connectionStatus.details || 'No connection to ProPresenter'
+            }
+          };
+          
+          const statusInfo = statusMap[connectionStatus.status] || statusMap['disconnected'];
+          connectionDot.className = 'connection-dot ' + statusInfo.dotClass;
+          connectionText.textContent = statusInfo.text;
+          connectionDetails.textContent = statusInfo.details;
         } else {
-          statusBadge.classList.add('status-idle');
-          statusBadge.textContent = 'Inactive';
-          statusText.textContent = 'Ready to start';
+          connectionDot.className = 'connection-dot disconnected';
+          connectionText.textContent = 'Not connected';
+          connectionDetails.textContent = 'Start bridge to connect';
         }
       }
 
@@ -366,6 +455,10 @@
           updateConnectionStatus();
           updateButtonStates();
         });
+        window.bridgeAPI.onConnection((connStatus) => {
+          connectionStatus = connStatus;
+          updateConnectionStatus();
+        });
       }
 
       // Set up button listeners
@@ -383,12 +476,12 @@
         
         const host = localStorage.getItem('proPresenterHost') || '127.0.0.1';
         const port = parseInt(localStorage.getItem('proPresenterPort') || '55056');
-        const pollInterval = parseInt(localStorage.getItem('pollInterval') || '5000');
+        const password = localStorage.getItem('proPresenterPassword') || '';
         const useNotes = localStorage.getItem('useNotes') === 'true';
         const notesTrigger = localStorage.getItem('notesTrigger') || 'Current Slide Notes';
         const debugMode = localStorage.getItem('debugMode') === 'true';
         appendLog('Start requested.');
-        window.bridgeAPI.start(token, host, port, debugMode, pollInterval, useNotes, notesTrigger);
+        window.bridgeAPI.start(token, host, port, debugMode, 0, useNotes, notesTrigger, password);
       });
 
       stopBtn.addEventListener('click', () => {
@@ -406,11 +499,6 @@
       // Initialize
       syncBridgeStatus();
       updateConnectionStatus();
-      
-      // Update polling rate display on page load
-      const pollInterval = parseInt(localStorage.getItem('pollInterval') || '5000');
-      const pollRateSeconds = (pollInterval / 1000).toFixed(1);
-      currentPollRate.textContent = pollRateSeconds + 's';
       
       // Periodically sync status (every 2 seconds)
       setInterval(syncBridgeStatus, 2000);

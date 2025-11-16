@@ -260,16 +260,14 @@
           <p class="info-text">Default port is 55056. Change if ProPresenter is running on a different port.</p>
         </div>
 
-        <div class="form-group" style="margin-top: 16px; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 16px;">
-          <label for="pollIntervalInput">Polling Interval (milliseconds)</label>
+        <div class="form-group" style="margin-top: 12px; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 12px;">
+          <label for="passwordInput">Remote Control Password (Optional)</label>
           <input 
-            type="number" 
-            id="pollIntervalInput" 
-            placeholder="5000"
-            min="100"
-            step="100"
+            type="text" 
+            id="passwordInput" 
+            placeholder="Leave empty if no password set"
           />
-          <p class="info-text">How often to check ProPresenter for slide changes (minimum 100ms). Default: 5000ms (5 seconds).</p>
+          <p class="info-text">Password set in ProPresenter → Network → Remote Control. Leave empty if authentication is disabled.</p>
         </div>
       </div>
 
@@ -320,6 +318,7 @@
     <script>
       const tokenInput = document.getElementById('tokenInput');
       const portInput = document.getElementById('portInput');
+      const passwordInput = document.getElementById('passwordInput');
       const pollIntervalInput = document.getElementById('pollIntervalInput');
       const useNotesToggle = document.getElementById('useNotesToggle');
       const notesTriggerInput = document.getElementById('notesTriggerInput');
@@ -340,8 +339,8 @@
         const savedPort = localStorage.getItem('proPresenterPort');
         portInput.value = savedPort || '55056';
         
-        const savedPollInterval = localStorage.getItem('pollInterval');
-        pollIntervalInput.value = savedPollInterval || '5000';
+        const savedPassword = localStorage.getItem('proPresenterPassword');
+        passwordInput.value = savedPassword || '';
         
         const useNotes = localStorage.getItem('useNotes') === 'true';
         useNotesToggle.checked = useNotes;
@@ -373,12 +372,6 @@
           return;
         }
         
-        const pollInterval = parseInt(pollIntervalInput.value);
-        if (!pollInterval || pollInterval < 100) {
-          alert('Polling interval must be at least 100ms.');
-          return;
-        }
-        
         const notesTrigger = notesTriggerInput.value.trim();
         if (!notesTrigger) {
           alert('Notes trigger string cannot be empty.');
@@ -388,7 +381,7 @@
         localStorage.setItem('kefasToken', token);
         localStorage.setItem('proPresenterHost', host);
         localStorage.setItem('proPresenterPort', port);
-        localStorage.setItem('pollInterval', pollInterval);
+        localStorage.setItem('proPresenterPassword', passwordInput.value.trim());
         localStorage.setItem('useNotes', useNotesToggle.checked ? 'true' : 'false');
         localStorage.setItem('notesTrigger', notesTrigger);
         localStorage.setItem('debugMode', debugToggle.checked ? 'true' : 'false');

@@ -1,6 +1,7 @@
 // bridge.js
 const fs = require('fs');
 const path = require('path');
+const WebSocket = require('ws');
 
 const DEBUG_LOG_FILE = path.join(process.env.HOME || '/tmp', 'propresenter-kefas-bridge.log');
 
@@ -9,9 +10,14 @@ function writeDebugLog(message) {
     const timestamp = new Date().toISOString();
     const line = `[${timestamp}] ${message}\n`;
     fs.appendFileSync(DEBUG_LOG_FILE, line);
-    console.log(`[LOG] ${message}`);
+    // Safely log to console, ignore EPIPE errors
+    try {
+      console.log(`[LOG] ${message}`);
+    } catch (err) {
+      // Ignore console write errors
+    }
   } catch (err) {
-    console.error('Failed to write debug log:', err.message);
+    // Silently fail if log file write fails
   }
 }
 
@@ -20,23 +26,29 @@ let PRO_API_HOST = PRO_HOST; // ProPresenter API host (can be overridden)
 let PRO_API_PORT = 55056; // ProPresenter API port (can be overridden)
 const KEFAS_BASE_URL = 'https://web.kefas.app';
 const KEFAS_MEETING_ID = 'live';
-const DEFAULT_POLL_INTERVAL = 5000; // Default: Poll every 5 seconds
-const MIN_POLL_INTERVAL = 100; // Minimum: 0.1 seconds
+
 const DEFAULT_NOTES_TRIGGER = 'Current Slide Notes';
 
 let lastSentLyric = null;
-let pollTimer = null;
-let pollInterval = DEFAULT_POLL_INTERVAL;
 let kefasToken = null;
 let debugMode = false;
 let isRunning = false;
 let onStatusCallback = null;
+let onConnectionStatusCallback = null;
 let useNotes = false;
 let notesTrigger = DEFAULT_NOTES_TRIGGER;
+let ws = null;
+let wsConnected = false;
 
 function updateStatus(message) {
   if (debugMode) console.debug(`[DEBUG] Status: ${message}`);
   onStatusCallback?.(message);
+}
+
+function updateConnectionStatus(status, details = '') {
+  if (debugMode) console.debug(`[DEBUG] Connection Status: ${status} - ${details}`);
+  onConnectionStatusCallback?.({ status, details, wsConnected });
+  writeDebugLog(`[CONNECTION] Status: ${status} - ${details}`);
 }
 
 async function sendToKefas(content) {
@@ -189,7 +201,7 @@ async function tick() {
 
     if (lyric === lastSentLyric) {
       if (debugMode) console.debug(`[DEBUG] Lyric unchanged, skipping send`);
-      writeDebugLog(`[POLL] Lyric unchanged, not sending`);
+      writeDebugLog(`[CHECK] Lyric unchanged, not sending`);
       return;
     }
 
@@ -199,23 +211,157 @@ async function tick() {
       console.debug(`[DEBUG] New lyric: ${lyric.substring(0, 100)}...`);
     }
 
-    writeDebugLog(`[POLL] New lyric detected - length: ${lyric.length} chars`);
-    writeDebugLog(`[POLL] Content: "${lyric.substring(0, 200)}${lyric.length > 200 ? '...' : ''}"`);
+    writeDebugLog(`[CHECK] New lyric detected - length: ${lyric.length} chars`);
+    writeDebugLog(`[CHECK] Content: "${lyric.substring(0, 200)}${lyric.length > 200 ? '...' : ''}"`);
     updateStatus(`Sending: ${JSON.stringify(lyric.substring(0, 50))}${lyric.length > 50 ? '...' : ''}`);
     await sendToKefas(lyric);
     lastSentLyric = lyric;
-    writeDebugLog(`[POLL] Successfully sent to Kefas`);
+    writeDebugLog(`[CHECK] Successfully sent to Kefas`);
     updateStatus('Sent to Kefas successfully.');
   } catch (err) {
     updateStatus(`Error: ${err.message}`);
-    writeDebugLog(`[POLL] Error: ${err.message}`);
+    writeDebugLog(`[CHECK] Error: ${err.message}`);
     if (debugMode) console.error(`[DEBUG] Error in tick:`, err);
   }
 }
 
 
 
-function startBridge(token, host, port, debugModeEnabled, onStatus, intervalMs = DEFAULT_POLL_INTERVAL, useNotesParam = false, notesTriggerParam = DEFAULT_NOTES_TRIGGER) {
+function connectWebSocket(host, port, password = '') {
+  // ProPresenter 7 uses /remote endpoint with required authentication
+  const wsUrl = `ws://${host}:${port}/remote`;
+  
+  writeDebugLog(`[WS] Attempting WebSocket connection to ${wsUrl}`);
+  if (debugMode) console.debug(`[DEBUG] Connecting to WebSocket: ${wsUrl}`);
+  
+  try {
+    ws = new WebSocket(wsUrl);
+    
+    // Set timeout for connection
+    const timeout = setTimeout(() => {
+      if (ws && ws.readyState === WebSocket.CONNECTING) {
+        writeDebugLog(`[WS] WebSocket connection timeout`);
+        if (ws) ws.close();
+        ws = null;
+        wsConnected = false;
+        updateConnectionStatus('error', 'Connection timeout - check ProPresenter settings');
+        updateStatus('WebSocket connection timeout. Is ProPresenter running with network enabled?');
+      }
+    }, 5000);
+    
+    ws.on('open', () => {
+      clearTimeout(timeout);
+      writeDebugLog(`[WS] WebSocket connected successfully to ${wsUrl}`);
+      if (debugMode) console.debug(`[DEBUG] WebSocket connected`);
+      updateConnectionStatus('connecting', 'Authenticating with ProPresenter...');
+      
+      // Authenticate immediately after connection
+      const authMessage = {
+        action: 'authenticate',
+        protocol: 701,  // ProPresenter 7.4.2+ uses protocol 701
+        password: password
+      };
+      ws.send(JSON.stringify(authMessage));
+      writeDebugLog(`[WS] Sent authentication message (protocol 701) with password: ${password}`);
+    });
+    
+    ws.on('message', (data) => {
+      try {
+        const message = JSON.parse(data);
+        
+        writeDebugLog(`[WS] Received message: ${JSON.stringify(message)}`);
+        if (debugMode) {
+          console.debug(`[DEBUG] Full WebSocket message:`, message);
+        }
+        
+        // Handle authentication response
+        if (message.action === 'authenticate') {
+          writeDebugLog(`[WS] Auth response - authenticated: ${message.authenticated}, error: ${message.error || 'none'}`);
+          
+          if (message.authenticated === true || message.authenticated === 1) {
+            writeDebugLog(`[WS] Successfully authenticated with ProPresenter`);
+            if (debugMode) console.debug(`[DEBUG] WebSocket authenticated`);
+            wsConnected = true;
+            updateConnectionStatus('connected', 'WebSocket active');
+            updateStatus('WebSocket connected and authenticated - listening for slide changes...');
+          } else {
+            const errorMsg = message.error || message.message || 'Unknown error';
+            writeDebugLog(`[WS] Authentication failed: ${errorMsg}`);
+            if (debugMode) console.debug(`[DEBUG] Auth failed:`, message);
+            wsConnected = false;
+            updateConnectionStatus('error', `Auth failed: ${errorMsg}`);
+            updateStatus(`WebSocket authentication failed: ${errorMsg}`);
+          }
+          return;
+        }
+        
+        // Listen for all presentation trigger events (these indicate slide changes)
+        // Based on ProPresenter 7 API documentation
+        if (message.action === 'presentationTriggerIndex' ||      // Slide triggered by index
+            message.action === 'presentationTriggerNext' ||        // Next slide triggered
+            message.action === 'presentationTriggerPrevious' ||    // Previous slide triggered
+            message.action === 'presentationSlideIndex' ||         // Current slide index update
+            message.action === 'presentationCurrent') {            // Current presentation changed
+          
+          writeDebugLog(`[WS] Slide change detected via ${message.action}`);
+          if (debugMode) {
+            console.debug(`[DEBUG] WebSocket slide change event:`, message);
+          }
+          
+          // Trigger immediate API call to get the new slide content
+          tick();
+        }
+      } catch (err) {
+        writeDebugLog(`[WS] Message parse error: ${err.message}`);
+        if (debugMode) console.debug(`[DEBUG] WebSocket message parse error:`, err);
+      }
+    });
+    
+    ws.on('error', (err) => {
+      clearTimeout(timeout);
+      writeDebugLog(`[WS] WebSocket error: ${err.message}`);
+      if (debugMode) console.error(`[DEBUG] WebSocket error:`, err);
+      if (ws) ws.close();
+      ws = null;
+      wsConnected = false;
+      updateConnectionStatus('error', `WebSocket error: ${err.message}`);
+      updateStatus(`WebSocket error: ${err.message}. Check ProPresenter network settings.`);
+    });
+    
+    ws.on('close', () => {
+      clearTimeout(timeout);
+      writeDebugLog(`[WS] WebSocket disconnected`);
+      if (debugMode) console.debug(`[DEBUG] WebSocket disconnected`);
+      ws = null;
+      wsConnected = false;
+      updateConnectionStatus('disconnected', 'Connection lost');
+      
+      if (isRunning) {
+        updateStatus('WebSocket disconnected. Bridge still running but not receiving events.');
+      }
+    });
+  } catch (err) {
+    writeDebugLog(`[WS] Failed to create WebSocket: ${err.message}`);
+    if (debugMode) console.error(`[DEBUG] WebSocket creation error:`, err);
+    wsConnected = false;
+    updateConnectionStatus('error', `Connection failed: ${err.message}`);
+    updateStatus(`WebSocket connection failed: ${err.message}`);
+  }
+}
+
+function disconnectWebSocket() {
+  if (ws) {
+    writeDebugLog(`[WS] Closing WebSocket connection`);
+    ws.close();
+    ws = null;
+    wsConnected = false;
+    updateConnectionStatus('disconnected', 'Bridge stopped');
+  }
+}
+
+
+
+function startBridge(token, host, port, debugModeEnabled, onStatus, intervalMs = 0, useNotesParam = false, notesTriggerParam = DEFAULT_NOTES_TRIGGER, onConnectionStatus = null, password = '') {
   writeDebugLog(`===== BRIDGE START =====`);
   writeDebugLog(`Token: ${token.substring(0, 5)}...`);
   writeDebugLog(`Host: ${host}`);
@@ -236,35 +382,24 @@ function startBridge(token, host, port, debugModeEnabled, onStatus, intervalMs =
   PRO_API_HOST = host || '127.0.0.1';
   PRO_API_PORT = parseInt(port) || 55056;
   
-  // Validate and clamp polling interval
-  let validInterval = parseInt(intervalMs) || DEFAULT_POLL_INTERVAL;
-  if (validInterval < MIN_POLL_INTERVAL) {
-    validInterval = MIN_POLL_INTERVAL;
-    writeDebugLog(`Polling interval too low, clamped to minimum: ${MIN_POLL_INTERVAL}ms`);
-  }
-  pollInterval = validInterval;
-  
   debugMode = debugModeEnabled || false;
   kefasToken = token;
   useNotes = useNotesParam || false;
   notesTrigger = notesTriggerParam || DEFAULT_NOTES_TRIGGER;
   isRunning = true;
   onStatusCallback = onStatus;
+  onConnectionStatusCallback = onConnectionStatus;
   lastSentLyric = null;
   
   if (debugMode) console.debug(`[DEBUG] Debug mode enabled`);
-  console.log(`Bridge starting with polling on port ${PRO_API_PORT}, interval: ${pollInterval}ms, debug mode: ${debugMode}`);
-  writeDebugLog(`Bridge starting - polling ProPresenter API on port ${PRO_API_PORT} with interval ${pollInterval}ms`);
+  console.log(`Bridge starting with WebSocket trigger to ProPresenter API on port ${PRO_API_PORT}`);
+  writeDebugLog(`Bridge starting - WebSocket will trigger API calls on slide changes`);
   
-  onStatus?.(`Starting bridge - polling ProPresenter API every ${pollInterval/1000}s...`);
+  onStatus?.(`Starting bridge - connecting to ProPresenter WebSocket...`);
+  updateConnectionStatus('connecting', 'Connecting to ProPresenter...');
   
-  // Start polling
-  pollTimer = setInterval(() => {
-    tick();
-  }, pollInterval);
-  
-  // Do initial check immediately
-  tick();
+  // Connect WebSocket - wait for slide change events to trigger API calls
+  connectWebSocket(PRO_API_HOST, PRO_API_PORT, password);
 }
 
 function stopBridge(onStatus) {
@@ -276,11 +411,10 @@ function stopBridge(onStatus) {
   isRunning = false;
   lastSentLyric = null;
   onStatusCallback = null;
-
-  if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
-  }
+  onConnectionStatusCallback = null;
+  
+  // Disconnect WebSocket
+  disconnectWebSocket();
 
   writeDebugLog(`===== BRIDGE STOPPED =====`);
   onStatus?.('Bridge stopped.');
@@ -291,4 +425,21 @@ function getBridgeStatus() {
 }
 
 module.exports = { startBridge, stopBridge, getBridgeStatus };
+
+// Handle EPIPE errors globally
+process.on('uncaughtException', (err) => {
+  if (err.code === 'EPIPE') {
+    // Silently ignore EPIPE errors
+    return;
+  }
+  console.error('Uncaught error:', err);
+});
+
+process.on('unhandledRejection', (err) => {
+  if (err && err.code === 'EPIPE') {
+    // Silently ignore EPIPE errors
+    return;
+  }
+  console.error('Unhandled rejection:', err);
+});
 
