@@ -1,6 +1,6 @@
 {
   "name": "propresenter-kefas-electron",
-  "version": "1.0.0",
+  "version": "2025.11",
   "description": "Bridge ProPresenter 7 lyrics to Kefas API",
   "main": "src/main/main.js",
   "type": "module",
@@ -20,7 +20,7 @@
     "ws": "^8.18.3"
   },
   "build": {
-    "appId": "com.propresenter-kefas.app",
+    "appId": "com.jopterhorst.propresenter-kefas-bridge.app",
     "productName": "ProPresenter Kefas Bridge",
     "icon": "src/assets/icon.png",
     "files": [
