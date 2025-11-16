@@ -33,7 +33,8 @@
         "dmg",
         "zip"
       ],
-      "category": "public.app-category.utilities"
+      "category": "public.app-category.utilities",
+      "sign": null
     },
     "win": {
       "target": [

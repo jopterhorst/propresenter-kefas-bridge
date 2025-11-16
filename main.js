@@ -2,7 +2,7 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { startBridge, stopBridge } from './bridge.js';
+import { startBridge, stopBridge, getBridgeStatus } from './bridge.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -11,8 +11,10 @@ let mainWindow = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 500,
-    height: 400,
+    width: 700,
+    height: 900,
+    minWidth: 600,
+    minHeight: 700,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
     },
@@ -44,15 +46,25 @@ app.on('window-all-closed', () => {
 });
 
 // IPC: handle start/stop from renderer
-ipcMain.handle('bridge:start', (event, token) => {
-  startBridge(token, (msg) => {
+ipcMain.handle('bridge:start', (event, token, port, debugMode) => {
+  startBridge(token, port, debugMode, (msg) => {
     // send log messages back to renderer
     mainWindow?.webContents.send('bridge:log', msg);
+    // also send status update
+    mainWindow?.webContents.send('bridge:status', getBridgeStatus());
   });
+  return { success: true };
 });
 
 ipcMain.handle('bridge:stop', (event) => {
   stopBridge((msg) => {
     mainWindow?.webContents.send('bridge:log', msg);
+    // also send status update
+    mainWindow?.webContents.send('bridge:status', getBridgeStatus());
   });
+  return { success: true };
+});
+
+ipcMain.handle('bridge:status', (event) => {
+  return getBridgeStatus();
 });
