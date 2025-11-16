@@ -111,6 +111,37 @@ function extractCurrentLyric(statusJson) {
     text = String(text).trim();
   }
 
+  // Check if text contains 'Current Slide Notes' - if so, use notes attribute instead
+  if (text.includes('Current Slide Notes')) {
+    writeDebugLog(`[EXTRACT] Text contains 'Current Slide Notes', attempting to use notes attribute instead`);
+    
+    // Check for notes in the same candidate locations
+    const notesCandidates = [
+      statusJson?.data?.current?.notes,
+      statusJson?.data?.slide?.current?.notes,
+      statusJson?.current?.notes,
+      statusJson?.slide?.notes,
+    ];
+    
+    let notes = notesCandidates.find((v) => !!v);
+    
+    if (notes) {
+      if (Array.isArray(notes)) {
+        notes = notes.join('\n').trim();
+        writeDebugLog(`[EXTRACT] Notes was array, joined into single string`);
+      } else if (typeof notes === 'string') {
+        notes = notes.trim();
+      } else {
+        notes = String(notes).trim();
+      }
+      
+      if (notes) {
+        text = notes;
+        writeDebugLog(`[EXTRACT] Using notes instead of text: "${text.substring(0, 150)}${text.length > 150 ? '...' : ''}"`);
+      }
+    }
+  }
+
   if (debugMode) {
     console.debug(`[DEBUG] Extracted text:`, text);
   }
