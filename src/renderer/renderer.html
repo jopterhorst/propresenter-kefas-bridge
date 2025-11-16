@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>ProPresenter → Kefas Bridge</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+        background: linear-gradient(135deg, #f5f5f7 0%, #e8e8eb 100%);
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 32px;
+      }
+
+      .header h1 {
+        font-size: 32px;
+        font-weight: 700;
+        color: #1d1d1f;
+        margin-bottom: 8px;
+        letter-spacing: -0.5px;
+      }
+
+      .header p {
+        font-size: 15px;
+        color: #6f6f77;
+        font-weight: 500;
+      }
+
+      .card {
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        border-radius: 18px;
+        padding: 24px;
+        margin-bottom: 16px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      }
+
+      .card h3 {
+        font-size: 16px;
+        font-weight: 600;
+        color: #1d1d1f;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .section-icon {
+        width: 20px;
+        height: 20px;
+        background: linear-gradient(135deg, #ff9500 0%, #ff6b35 100%);
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .form-group {
+        margin-bottom: 16px;
+      }
+
+      .form-group:last-child {
+        margin-bottom: 0;
+      }
+
+      label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        color: #1d1d1f;
+        margin-bottom: 8px;
+        letter-spacing: 0.3px;
+      }
+
+      input[type="text"],
+      input[type="password"] {
+        width: 100%;
+        padding: 12px 14px;
+        border: 1.5px solid rgba(0, 0, 0, 0.08);
+        border-radius: 10px;
+        font-size: 14px;
+        font-family: inherit;
+        background: rgba(255, 255, 255, 0.9);
+        transition: all 0.2s ease;
+      }
+
+      input[type="text"]:focus,
+      input[type="password"]:focus {
+        outline: none;
+        border-color: #ff9500;
+        box-shadow: 0 0 0 3px rgba(255, 149, 0, 0.1);
+        background: white;
+      }
+
+      input[type="text"]::placeholder,
+      input[type="password"]::placeholder {
+        color: #a1a1a6;
+      }
+
+      .button-group {
+        display: flex;
+        gap: 12px;
+        margin-top: 12px;
+      }
+
+      button {
+        flex: 1;
+        padding: 11px 16px;
+        border: none;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        letter-spacing: 0.2px;
+      }
+
+      .btn-primary {
+        background: linear-gradient(135deg, #ff9500 0%, #ff6b35 100%);
+        color: white;
+        box-shadow: 0 4px 12px rgba(255, 149, 0, 0.3);
+      }
+
+      .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(255, 149, 0, 0.4);
+      }
+
+      .btn-primary:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 8px rgba(255, 149, 0, 0.2);
+      }
+
+      .btn-secondary {
+        background: rgba(0, 0, 0, 0.06);
+        color: #1d1d1f;
+        border: 1.5px solid rgba(0, 0, 0, 0.08);
+      }
+
+      .btn-secondary:hover {
+        background: rgba(0, 0, 0, 0.1);
+        border-color: rgba(0, 0, 0, 0.12);
+      }
+
+      .btn-secondary:active {
+        background: rgba(0, 0, 0, 0.08);
+      }
+
+      .controls {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      .controls button {
+        padding: 14px 20px;
+        font-size: 15px;
+      }
+
+      #log {
+        background: rgba(0, 0, 0, 0.85);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 16px;
+        height: 240px;
+        overflow-y: auto;
+        font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+        font-size: 12px;
+        line-height: 1.6;
+        color: #00d084;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      #log::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      #log::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 4px;
+      }
+
+      #log::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 4px;
+      }
+
+      #log::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.25);
+      }
+
+      .info-text {
+        font-size: 12px;
+        color: #a1a1a6;
+        margin-top: 12px;
+        line-height: 1.5;
+      }
+
+      .status-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        margin-right: 8px;
+      }
+
+      .status-running {
+        background: rgba(0, 208, 132, 0.15);
+        color: #00d084;
+      }
+
+      .status-idle {
+        background: rgba(161, 161, 166, 0.15);
+        color: #a1a1a6;
+      }
+
+      /* Dark mode support */
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: linear-gradient(135deg, #1d1d1f 0%, #2a2a2e 100%);
+        }
+
+        .card {
+          background: rgba(45, 45, 50, 0.6);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .card h3 {
+          color: #f5f5f7;
+        }
+
+        .header h1 {
+          color: #f5f5f7;
+        }
+
+        .header p {
+          color: #a1a1a6;
+        }
+
+        label {
+          color: #f5f5f7;
+        }
+
+        input[type="text"],
+        input[type="password"] {
+          background: rgba(255, 255, 255, 0.08);
+          border-color: rgba(255, 255, 255, 0.1);
+          color: #f5f5f7;
+        }
+
+        input[type="text"]:focus,
+        input[type="password"]:focus {
+          background: rgba(255, 255, 255, 0.12);
+          box-shadow: 0 0 0 3px rgba(255, 149, 0, 0.15);
+        }
+
+        input[type="text"]::placeholder,
+        input[type="password"]::placeholder {
+          color: #6f6f77;
+        }
+
+        .btn-secondary {
+          background: rgba(255, 255, 255, 0.08);
+          color: #f5f5f7;
+          border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-secondary:hover {
+          background: rgba(255, 255, 255, 0.12);
+          border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .info-text {
+          color: #6f6f77;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🎵 ProPresenter Kefas</h1>
+        <p>Bridge your lyrics to the web in real-time</p>
+      </div>
+
+      <!-- Settings Card -->
+      <div class="card">
+        <h3>
+          <div class="section-icon">⚙️</div>
+          API Settings
+        </h3>
+        <div class="form-group">
+          <label for="tokenInput">Kefas API Token</label>
+          <input 
+            type="password" 
+            id="tokenInput" 
+            placeholder="Paste your Kefas API token"
+          />
+          <p class="info-text">Your token is stored locally and never sent anywhere except Kefas API.</p>
+        </div>
+
+        <div class="form-group" style="margin-top: 16px; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 16px;">
+          <label for="portInput">ProPresenter API Port</label>
+          <input 
+            type="number" 
+            id="portInput" 
+            placeholder="55056"
+            min="1"
+            max="65535"
+          />
+          <p class="info-text">Default port is 55056. Change if ProPresenter is running on a different port.</p>
+        </div>
+
+        <div class="form-group" style="margin-top: 16px; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 16px;">
+          <label for="pollIntervalInput">Polling Interval (milliseconds)</label>
+          <input 
+            type="number" 
+            id="pollIntervalInput" 
+            placeholder="5000"
+            min="100"
+            step="100"
+          />
+          <p class="info-text">How often to check ProPresenter for slide changes (minimum 100ms / 0.1s). Default is 5000ms (5 seconds).</p>
+        </div>
+        
+        <div class="form-group" style="margin-top: 16px; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 16px;">
+          <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 0; font-weight: 500;">
+            <input type="checkbox" id="debugToggle" style="width: 18px; height: 18px; cursor: pointer;">
+            <span>🐛 Debug Mode</span>
+          </label>
+          <p class="info-text" style="margin-top: 8px;">Enable verbose logging for troubleshooting and development.</p>
+        </div>
+        
+        <button class="btn-primary" id="saveToken" style="width: 100%; margin-top: 12px;">Save Settings</button>
+      </div>      <!-- Controls Card -->
+      <div class="card">
+        <h3>
+          <div class="section-icon">▶️</div>
+          Bridge Control
+        </h3>
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+          <span class="status-badge status-idle" id="statusBadge">● Inactive</span>
+          <span id="statusText" style="font-size: 13px; color: #a1a1a6;">Ready to start</span>
+        </div>
+        <p class="info-text">ProPresenter 7 with REST API polling. Uses /v1/status/slide endpoint on port 55056. Configured polling rate: <span id="currentPollRate" style="font-weight: 600; color: #ff9500;">5.0s</span></p>
+        <div class="controls" style="margin-top: 16px;">
+          <button class="btn-primary" id="start">Start Bridge</button>
+          <button class="btn-secondary" id="stop">Stop Bridge</button>
+        </div>
+      </div>
+
+      <!-- Logs Card -->
+      <div class="card">
+        <h3>
+          <div class="section-icon">📋</div>
+          Activity Log
+        </h3>
+        <div id="log"></div>
+      </div>
+    </div>
+
+    <script>
+      const logEl = document.getElementById('log');
+      const startBtn = document.getElementById('start');
+      const stopBtn = document.getElementById('stop');
+      const tokenInput = document.getElementById('tokenInput');
+      const portInput = document.getElementById('portInput');
+      const pollIntervalInput = document.getElementById('pollIntervalInput');
+      const saveTokenBtn = document.getElementById('saveToken');
+      const debugToggle = document.getElementById('debugToggle');
+      const statusBadge = document.getElementById('statusBadge');
+      const statusText = document.getElementById('statusText');
+      const currentPollRate = document.getElementById('currentPollRate');
+
+      let bridgeRunning = false;
+      let connectionStatus = 'disconnected';
+
+      function appendLog(msg) {
+        const time = new Date().toLocaleTimeString('en-US', { 
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+        logEl.textContent += `[${time}] ${msg}\n`;
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      function updateConnectionStatus(status) {
+        connectionStatus = status;
+        
+        // Update badge appearance based on whether bridge is running
+        statusBadge.className = 'status-badge';
+        
+        if (bridgeRunning) {
+          statusBadge.classList.add('status-running');
+          statusBadge.textContent = '● Active';
+          const pollInterval = parseInt(localStorage.getItem('pollInterval') || '5000');
+          const pollRateSeconds = (pollInterval / 1000).toFixed(1);
+          statusText.textContent = `Bridge is polling ProPresenter API every ${pollRateSeconds}s`;
+          currentPollRate.textContent = pollRateSeconds + 's';
+        } else {
+          statusBadge.classList.add('status-idle');
+          statusBadge.textContent = '● Inactive';
+          statusText.textContent = 'Ready to start - configure settings above';
+        }
+      }
+
+      function updateButtonStates() {
+        startBtn.disabled = bridgeRunning;
+        stopBtn.disabled = !bridgeRunning;
+      }
+
+      async function syncBridgeStatus() {
+        if (!window.bridgeAPI) return;
+        try {
+          const status = await window.bridgeAPI.getStatus();
+          bridgeRunning = status.isRunning;
+          updateConnectionStatus(status.connectionStatus || 'disconnected');
+          updateButtonStates();
+        } catch (err) {
+          console.error('Failed to get bridge status:', err);
+        }
+      }
+
+      // Load settings from localStorage on startup
+      function loadSettings() {
+        const savedToken = localStorage.getItem('kefasToken');
+        if (savedToken) {
+          tokenInput.value = savedToken;
+        }
+        
+        const savedPort = localStorage.getItem('proPresenterPort');
+        portInput.value = savedPort || '55056';
+        
+        const savedPollInterval = localStorage.getItem('pollInterval');
+        const pollInterval = savedPollInterval || '5000';
+        pollIntervalInput.value = pollInterval;
+        
+        const pollRateSeconds = (parseInt(pollInterval) / 1000).toFixed(1);
+        currentPollRate.textContent = pollRateSeconds + 's';
+        
+        const debugMode = localStorage.getItem('debugMode') === 'true';
+        debugToggle.checked = debugMode;
+      }
+
+      // Save settings to localStorage
+      function saveSettings() {
+        const token = tokenInput.value.trim();
+        if (!token) {
+          appendLog('❌ Error: Kefas token cannot be empty.');
+          return;
+        }
+        
+        const port = parseInt(portInput.value);
+        if (!port || port < 1 || port > 65535) {
+          appendLog('❌ Error: Port must be between 1 and 65535.');
+          return;
+        }
+        
+        const pollInterval = parseInt(pollIntervalInput.value);
+        if (!pollInterval || pollInterval < 100) {
+          appendLog('❌ Error: Polling interval must be at least 100ms.');
+          return;
+        }
+        
+        localStorage.setItem('kefasToken', token);
+        localStorage.setItem('proPresenterPort', port);
+        localStorage.setItem('pollInterval', pollInterval);
+        localStorage.setItem('debugMode', debugToggle.checked ? 'true' : 'false');
+        appendLog('✅ Settings saved successfully.');
+        appendLog(`📡 ProPresenter port set to: ${port}`);
+        appendLog(`⏱️ Polling interval set to: ${pollInterval}ms (${pollInterval / 1000}s)`);
+        
+        // Update the displayed polling rate
+        const pollRateSeconds = (pollInterval / 1000).toFixed(1);
+        currentPollRate.textContent = pollRateSeconds + 's';
+        
+        if (debugToggle.checked) {
+          appendLog('🐛 Debug mode enabled.');
+        }
+      }
+
+      // Check if bridgeAPI is available
+      if (!window.bridgeAPI) {
+        appendLog('❌ Error: Bridge API not available. This is a development environment issue.');
+        console.error('window.bridgeAPI is undefined - preload.js may not be loaded');
+      } else {
+        // Set up IPC listeners
+        window.bridgeAPI.onLog(appendLog);
+        window.bridgeAPI.onStatus((status) => {
+          bridgeRunning = status.isRunning;
+          updateConnectionStatus(status.connectionStatus || 'disconnected');
+          updateButtonStates();
+        });
+      }
+
+      // Set up button listeners
+      saveTokenBtn.addEventListener('click', saveSettings);
+
+      startBtn.addEventListener('click', () => {
+        if (!window.bridgeAPI) {
+          appendLog('❌ Error: Bridge API not available.');
+          return;
+        }
+        
+        const token = localStorage.getItem('kefasToken');
+        if (!token) {
+          appendLog('❌ Error: Please set your Kefas token first.');
+          return;
+        }
+        
+        const port = parseInt(localStorage.getItem('proPresenterPort') || '55056');
+        const pollInterval = parseInt(localStorage.getItem('pollInterval') || '5000');
+        const debugMode = debugToggle.checked;
+        appendLog('▶️ Start requested.');
+        window.bridgeAPI.start(token, port, debugMode, pollInterval);
+      });
+
+      stopBtn.addEventListener('click', () => {
+        if (!window.bridgeAPI) {
+          appendLog('❌ Error: Bridge API not available.');
+          return;
+        }
+        
+        appendLog('⏹️ Stop requested.');
+        window.bridgeAPI.stop();
+      });
+
+      // Initialize
+      loadSettings();
+      syncBridgeStatus();
+      
+      // Periodically sync status (every 2 seconds)
+      setInterval(syncBridgeStatus, 2000);
+    </script>
+  </body>
+</html>

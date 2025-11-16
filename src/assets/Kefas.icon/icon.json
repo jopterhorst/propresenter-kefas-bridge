@@ -1,0 +1,39 @@
+{
+  "fill" : {
+    "solid" : "srgb:0.64706,0.23922,0.00784,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "blend-mode" : "normal",
+          "fill" : "automatic",
+          "glass" : true,
+          "image-name" : "kefas-logo-square.png",
+          "name" : "kefas-logo-square",
+          "position" : {
+            "scale" : 0.89,
+            "translation-in-points" : [
+              -19.2785155518352,
+              -0.8400000000000318
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}
