@@ -24,6 +24,7 @@ const KEFAS_BASE_URL = 'https://web.kefas.app';
 const KEFAS_MEETING_ID = 'live';
 const DEFAULT_POLL_INTERVAL = 5000; // Default: Poll every 5 seconds
 const MIN_POLL_INTERVAL = 100; // Minimum: 0.1 seconds
+const DEFAULT_NOTES_TRIGGER = 'Current Slide Notes';
 
 let lastSentLyric = null;
 let pollTimer = null;
@@ -32,6 +33,8 @@ let kefasToken = null;
 let debugMode = false;
 let isRunning = false;
 let onStatusCallback = null;
+let useNotes = false;
+let notesTrigger = DEFAULT_NOTES_TRIGGER;
 
 function updateStatus(message) {
   if (debugMode) console.debug(`[DEBUG] Status: ${message}`);
@@ -75,7 +78,7 @@ async function sendToKefas(content) {
 
   const json = await res.json();
   if (debugMode) console.debug(`[DEBUG] Kefas response:`, json);
-  writeDebugLog(`[SEND] ✅ Successfully sent to Kefas`);
+  writeDebugLog(`[SEND] Successfully sent to Kefas`);
   return json;
 }
 
@@ -111,9 +114,9 @@ function extractCurrentLyric(statusJson) {
     text = String(text).trim();
   }
 
-  // Check if text contains 'Current Slide Notes' - if so, use notes attribute instead
-  if (text.includes('Current Slide Notes')) {
-    writeDebugLog(`[EXTRACT] Text contains 'Current Slide Notes', attempting to use notes attribute instead`);
+  // Check if text contains the configured trigger string and useNotes is enabled
+  if (useNotes && text.includes(notesTrigger)) {
+    writeDebugLog(`[EXTRACT] Text contains trigger string "${notesTrigger}", attempting to use notes attribute instead`);
     
     // Check for notes in the same candidate locations
     const notesCandidates = [
@@ -182,7 +185,7 @@ async function tick() {
 
     if (!lyric) {
       if (debugMode) console.debug(`[DEBUG] No lyric found on current slide`);
-      updateStatus('⏸️ No lyric found on current slide.');
+      updateStatus('No lyric found on current slide.');
       return;
     }
 
@@ -200,32 +203,33 @@ async function tick() {
 
     writeDebugLog(`[POLL] New lyric detected - length: ${lyric.length} chars`);
     writeDebugLog(`[POLL] Content: "${lyric.substring(0, 200)}${lyric.length > 200 ? '...' : ''}"`);
-    updateStatus(`📤 Sending: ${JSON.stringify(lyric.substring(0, 50))}${lyric.length > 50 ? '...' : ''}`);
+    updateStatus(`Sending: ${JSON.stringify(lyric.substring(0, 50))}${lyric.length > 50 ? '...' : ''}`);
     await sendToKefas(lyric);
     lastSentLyric = lyric;
-    writeDebugLog(`[POLL] ✅ Successfully sent to Kefas`);
-    updateStatus('✅ Sent to Kefas successfully.');
+    writeDebugLog(`[POLL] Successfully sent to Kefas`);
+    updateStatus('Sent to Kefas successfully.');
   } catch (err) {
-    updateStatus(`❌ Error: ${err.message}`);
-    writeDebugLog(`[POLL] ❌ Error: ${err.message}`);
+    updateStatus(`Error: ${err.message}`);
+    writeDebugLog(`[POLL] Error: ${err.message}`);
     if (debugMode) console.error(`[DEBUG] Error in tick:`, err);
   }
 }
 
 
 
-export function startBridge(token, port, debugModeEnabled, onStatus, intervalMs = DEFAULT_POLL_INTERVAL) {
+export function startBridge(token, port, debugModeEnabled, onStatus, intervalMs = DEFAULT_POLL_INTERVAL, useNotesParam = false, notesTriggerParam = DEFAULT_NOTES_TRIGGER) {
   writeDebugLog(`===== BRIDGE START =====`);
   writeDebugLog(`Token: ${token.substring(0, 5)}...`);
   writeDebugLog(`Port: ${port}`);
   writeDebugLog(`Debug mode: ${debugModeEnabled}`);
+  writeDebugLog(`Use Notes: ${useNotesParam}, Trigger: "${notesTriggerParam}"`);
   
   if (isRunning) {
-    onStatus?.('⚠️ Bridge is already running.');
+    onStatus?.('Bridge is already running.');
     return;
   }
   if (!token) {
-    onStatus?.('❌ Error: Kefas token is required.');
+    onStatus?.('Error: Kefas token is required.');
     return;
   }
   
@@ -239,6 +243,8 @@ export function startBridge(token, port, debugModeEnabled, onStatus, intervalMs 
   
   debugMode = debugModeEnabled || false;
   kefasToken = token;
+  useNotes = useNotesParam || false;
+  notesTrigger = notesTriggerParam || DEFAULT_NOTES_TRIGGER;
   isRunning = true;
   onStatusCallback = onStatus;
   lastSentLyric = null;
@@ -247,7 +253,7 @@ export function startBridge(token, port, debugModeEnabled, onStatus, intervalMs 
   console.log(`Bridge starting with polling on port ${PRO_API_PORT}, interval: ${pollInterval}ms, debug mode: ${debugMode}`);
   writeDebugLog(`Bridge starting - polling ProPresenter API on port ${PRO_API_PORT} with interval ${pollInterval}ms`);
   
-  onStatus?.(`▶️ Starting bridge - polling ProPresenter API every ${pollInterval/1000}s…`);
+  onStatus?.(`Starting bridge - polling ProPresenter API every ${pollInterval/1000}s...`);
   
   // Start polling
   pollTimer = setInterval(() => {
@@ -260,7 +266,7 @@ export function startBridge(token, port, debugModeEnabled, onStatus, intervalMs 
 
 export function stopBridge(onStatus) {
   if (!isRunning) {
-    onStatus?.('⚠️ Bridge is not running.');
+    onStatus?.('Bridge is not running.');
     return;
   }
 
@@ -274,7 +280,7 @@ export function stopBridge(onStatus) {
   }
 
   writeDebugLog(`===== BRIDGE STOPPED =====`);
-  onStatus?.('⏹️ Bridge stopped.');
+  onStatus?.('Bridge stopped.');
 }
 
 export function getBridgeStatus() {

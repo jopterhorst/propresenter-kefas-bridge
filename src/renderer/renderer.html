@@ -301,14 +301,14 @@
   <body>
     <div class="container">
       <div class="header">
-        <h1>🎵 ProPresenter Kefas</h1>
+        <h1>ProPresenter Kefas</h1>
         <p>Bridge your lyrics to the web in real-time</p>
       </div>
 
       <!-- Settings Card -->
       <div class="card">
         <h3>
-          <div class="section-icon">⚙️</div>
+          <div class="section-icon">⚙</div>
           API Settings
         </h3>
         <div class="form-group">
@@ -344,11 +344,29 @@
           />
           <p class="info-text">How often to check ProPresenter for slide changes (minimum 100ms / 0.1s). Default is 5000ms (5 seconds).</p>
         </div>
+
+        <div class="form-group" style="margin-top: 16px; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 16px;">
+          <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 0; font-weight: 500;">
+            <input type="checkbox" id="useNotesToggle" style="width: 18px; height: 18px; cursor: pointer;">
+            <span>Use Notes Instead of Text</span>
+          </label>
+          <p class="info-text" style="margin-top: 8px;">When the trigger string is found in slide text, use the notes field instead.</p>
+        </div>
+
+        <div class="form-group" style="margin-top: 16px;">
+          <label for="notesTriggerInput">Notes Trigger String</label>
+          <input 
+            type="text" 
+            id="notesTriggerInput" 
+            placeholder="Current Slide Notes"
+          />
+          <p class="info-text">If slide text contains this string, use notes attribute instead. Default: "Current Slide Notes"</p>
+        </div>
         
         <div class="form-group" style="margin-top: 16px; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 16px;">
           <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 0; font-weight: 500;">
             <input type="checkbox" id="debugToggle" style="width: 18px; height: 18px; cursor: pointer;">
-            <span>🐛 Debug Mode</span>
+            <span>Debug Mode</span>
           </label>
           <p class="info-text" style="margin-top: 8px;">Enable verbose logging for troubleshooting and development.</p>
         </div>
@@ -357,7 +375,7 @@
       </div>      <!-- Controls Card -->
       <div class="card">
         <h3>
-          <div class="section-icon">▶️</div>
+          <div class="section-icon">▶</div>
           Bridge Control
         </h3>
         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
@@ -374,7 +392,7 @@
       <!-- Logs Card -->
       <div class="card">
         <h3>
-          <div class="section-icon">📋</div>
+          <div class="section-icon">≡</div>
           Activity Log
         </h3>
         <div id="log"></div>
@@ -388,6 +406,8 @@
       const tokenInput = document.getElementById('tokenInput');
       const portInput = document.getElementById('portInput');
       const pollIntervalInput = document.getElementById('pollIntervalInput');
+      const useNotesToggle = document.getElementById('useNotesToggle');
+      const notesTriggerInput = document.getElementById('notesTriggerInput');
       const saveTokenBtn = document.getElementById('saveToken');
       const debugToggle = document.getElementById('debugToggle');
       const statusBadge = document.getElementById('statusBadge');
@@ -462,6 +482,12 @@
         const pollRateSeconds = (parseInt(pollInterval) / 1000).toFixed(1);
         currentPollRate.textContent = pollRateSeconds + 's';
         
+        const useNotes = localStorage.getItem('useNotes') === 'true';
+        useNotesToggle.checked = useNotes;
+        
+        const notesTrigger = localStorage.getItem('notesTrigger');
+        notesTriggerInput.value = notesTrigger || 'Current Slide Notes';
+        
         const debugMode = localStorage.getItem('debugMode') === 'true';
         debugToggle.checked = debugMode;
       }
@@ -470,42 +496,56 @@
       function saveSettings() {
         const token = tokenInput.value.trim();
         if (!token) {
-          appendLog('❌ Error: Kefas token cannot be empty.');
+          appendLog('Error: Kefas token cannot be empty.');
           return;
         }
         
         const port = parseInt(portInput.value);
         if (!port || port < 1 || port > 65535) {
-          appendLog('❌ Error: Port must be between 1 and 65535.');
+          appendLog('Error: Port must be between 1 and 65535.');
           return;
         }
         
         const pollInterval = parseInt(pollIntervalInput.value);
         if (!pollInterval || pollInterval < 100) {
-          appendLog('❌ Error: Polling interval must be at least 100ms.');
+          appendLog('Error: Polling interval must be at least 100ms.');
+          return;
+        }
+        
+        const notesTrigger = notesTriggerInput.value.trim();
+        if (!notesTrigger) {
+          appendLog('Error: Notes trigger string cannot be empty.');
           return;
         }
         
         localStorage.setItem('kefasToken', token);
         localStorage.setItem('proPresenterPort', port);
         localStorage.setItem('pollInterval', pollInterval);
+        localStorage.setItem('useNotes', useNotesToggle.checked ? 'true' : 'false');
+        localStorage.setItem('notesTrigger', notesTrigger);
         localStorage.setItem('debugMode', debugToggle.checked ? 'true' : 'false');
-        appendLog('✅ Settings saved successfully.');
-        appendLog(`📡 ProPresenter port set to: ${port}`);
-        appendLog(`⏱️ Polling interval set to: ${pollInterval}ms (${pollInterval / 1000}s)`);
+        appendLog('Settings saved successfully.');
+        appendLog(`ProPresenter port set to: ${port}`);
+        appendLog(`Polling interval set to: ${pollInterval}ms (${pollInterval / 1000}s)`);
         
         // Update the displayed polling rate
         const pollRateSeconds = (pollInterval / 1000).toFixed(1);
         currentPollRate.textContent = pollRateSeconds + 's';
         
+        if (useNotesToggle.checked) {
+          appendLog(`Notes fallback enabled (trigger: "${notesTrigger}")`);
+        } else {
+          appendLog('Notes fallback disabled');
+        }
+        
         if (debugToggle.checked) {
-          appendLog('🐛 Debug mode enabled.');
+          appendLog('Debug mode enabled.');
         }
       }
 
       // Check if bridgeAPI is available
       if (!window.bridgeAPI) {
-        appendLog('❌ Error: Bridge API not available. This is a development environment issue.');
+        appendLog('Error: Bridge API not available. This is a development environment issue.');
         console.error('window.bridgeAPI is undefined - preload.js may not be loaded');
       } else {
         // Set up IPC listeners
@@ -522,30 +562,32 @@
 
       startBtn.addEventListener('click', () => {
         if (!window.bridgeAPI) {
-          appendLog('❌ Error: Bridge API not available.');
+          appendLog('Error: Bridge API not available.');
           return;
         }
         
         const token = localStorage.getItem('kefasToken');
         if (!token) {
-          appendLog('❌ Error: Please set your Kefas token first.');
+          appendLog('Error: Please set your Kefas token first.');
           return;
         }
         
         const port = parseInt(localStorage.getItem('proPresenterPort') || '55056');
         const pollInterval = parseInt(localStorage.getItem('pollInterval') || '5000');
+        const useNotes = localStorage.getItem('useNotes') === 'true';
+        const notesTrigger = localStorage.getItem('notesTrigger') || 'Current Slide Notes';
         const debugMode = debugToggle.checked;
-        appendLog('▶️ Start requested.');
-        window.bridgeAPI.start(token, port, debugMode, pollInterval);
+        appendLog('Start requested.');
+        window.bridgeAPI.start(token, port, debugMode, pollInterval, useNotes, notesTrigger);
       });
 
       stopBtn.addEventListener('click', () => {
         if (!window.bridgeAPI) {
-          appendLog('❌ Error: Bridge API not available.');
+          appendLog('Error: Bridge API not available.');
           return;
         }
         
-        appendLog('⏹️ Stop requested.');
+        appendLog('Stop requested.');
         window.bridgeAPI.stop();
       });
 
