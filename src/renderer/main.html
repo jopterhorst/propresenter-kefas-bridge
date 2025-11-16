@@ -378,13 +378,14 @@
           return;
         }
         
+        const host = localStorage.getItem('proPresenterHost') || '127.0.0.1';
         const port = parseInt(localStorage.getItem('proPresenterPort') || '55056');
         const pollInterval = parseInt(localStorage.getItem('pollInterval') || '5000');
         const useNotes = localStorage.getItem('useNotes') === 'true';
         const notesTrigger = localStorage.getItem('notesTrigger') || 'Current Slide Notes';
         const debugMode = localStorage.getItem('debugMode') === 'true';
         appendLog('Start requested.');
-        window.bridgeAPI.start(token, port, debugMode, pollInterval, useNotes, notesTrigger);
+        window.bridgeAPI.start(token, host, port, debugMode, pollInterval, useNotes, notesTrigger);
       });
 
       stopBtn.addEventListener('click', () => {

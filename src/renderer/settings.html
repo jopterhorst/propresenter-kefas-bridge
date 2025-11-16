@@ -239,6 +239,16 @@
           ProPresenter API
         </h3>
         <div class="form-group">
+          <label for="hostInput">API Host / IP Address</label>
+          <input 
+            type="text" 
+            id="hostInput" 
+            placeholder="127.0.0.1"
+          />
+          <p class="info-text">IP address or hostname of the ProPresenter machine. Default: 127.0.0.1 (localhost)</p>
+        </div>
+
+        <div class="form-group" style="margin-top: 12px; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 12px;">
           <label for="portInput">API Port</label>
           <input 
             type="number" 
@@ -315,6 +325,7 @@
       const notesTriggerInput = document.getElementById('notesTriggerInput');
       const debugToggle = document.getElementById('debugToggle');
       const saveBtn = document.getElementById('saveBtn');
+      const hostInput = document.getElementById('hostInput');
 
       // Load settings from localStorage on startup
       function loadSettings() {
@@ -322,6 +333,9 @@
         if (savedToken) {
           tokenInput.value = savedToken;
         }
+        
+        const savedHost = localStorage.getItem('proPresenterHost');
+        hostInput.value = savedHost || '127.0.0.1';
         
         const savedPort = localStorage.getItem('proPresenterPort');
         portInput.value = savedPort || '55056';
@@ -347,6 +361,12 @@
           return;
         }
         
+        const host = hostInput.value.trim();
+        if (!host) {
+          alert('ProPresenter host cannot be empty.');
+          return;
+        }
+        
         const port = parseInt(portInput.value);
         if (!port || port < 1 || port > 65535) {
           alert('Port must be between 1 and 65535.');
@@ -366,6 +386,7 @@
         }
         
         localStorage.setItem('kefasToken', token);
+        localStorage.setItem('proPresenterHost', host);
         localStorage.setItem('proPresenterPort', port);
         localStorage.setItem('pollInterval', pollInterval);
         localStorage.setItem('useNotes', useNotesToggle.checked ? 'true' : 'false');

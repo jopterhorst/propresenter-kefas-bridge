@@ -26,6 +26,7 @@ Download the app for your platform and run it.
 
 Enter in the app:
 - **Kefas API Token** — Your token from step 1
+- **ProPresenter Host** — IP address or hostname (default: 127.0.0.1)
 - **ProPresenter Port** — Usually `55056`
 - **Polling Interval** — How often to check (default: 5 seconds)
 
@@ -43,6 +44,7 @@ Click **Save Settings**.
 | Setting | Default | Notes |
 |---------|---------|-------|
 | Kefas Token | — | Required |
+| ProPresenter Host | 127.0.0.1 | IP or hostname of ProPresenter machine |
 | ProPresenter Port | 55056 | Network API port |
 | Polling Interval | 5000ms | Min: 100ms |
 | Use Notes Instead | Off | Use slide notes when triggered |
@@ -87,8 +89,9 @@ When the app detects the trigger string in the slide text, it automatically uses
 
 ### Bridge won't start
 - Verify your Kefas token is correct
-- Make sure ProPresenter is running on port 55056
+- Make sure ProPresenter is running on the configured host and port
 - Check that network API is enabled in ProPresenter
+- Verify the host/IP address is correct and reachable
 
 ### Lyrics not syncing
 - Enable Debug Mode to see detailed logs

@@ -112,8 +112,8 @@ app.on('window-all-closed', () => {
 });
 
 // IPC: handle start/stop from renderer
-ipcMain.handle('bridge:start', (event, token, port, debugMode, pollInterval, useNotes, notesTrigger) => {
-  startBridge(token, port, debugMode, (msg) => {
+ipcMain.handle('bridge:start', (event, token, host, port, debugMode, pollInterval, useNotes, notesTrigger) => {
+  startBridge(token, host, port, debugMode, (msg) => {
     // send log messages back to both windows
     mainWindow?.webContents.send('bridge:log', msg);
     settingsWindow?.webContents.send('bridge:log', msg);

@@ -19,6 +19,7 @@ function writeDebugLog(message) {
 }
 
 const PRO_HOST = '127.0.0.1';
+let PRO_API_HOST = PRO_HOST; // ProPresenter API host (can be overridden)
 let PRO_API_PORT = 55056; // ProPresenter API port (can be overridden)
 const KEFAS_BASE_URL = 'https://web.kefas.app';
 const KEFAS_MEETING_ID = 'live';
@@ -154,7 +155,7 @@ function extractCurrentLyric(statusJson) {
 }
 
 async function getProPresenterSlideStatus() {
-  const url = `http://${PRO_HOST}:${PRO_API_PORT}/v1/status/slide`;
+  const url = `http://${PRO_API_HOST}:${PRO_API_PORT}/v1/status/slide`;
   
   if (debugMode) console.debug(`[DEBUG] Fetching from: ${url}`);
   writeDebugLog(`[API] Fetching ProPresenter slide status from ${url}`);
@@ -217,9 +218,10 @@ async function tick() {
 
 
 
-export function startBridge(token, port, debugModeEnabled, onStatus, intervalMs = DEFAULT_POLL_INTERVAL, useNotesParam = false, notesTriggerParam = DEFAULT_NOTES_TRIGGER) {
+export function startBridge(token, host, port, debugModeEnabled, onStatus, intervalMs = DEFAULT_POLL_INTERVAL, useNotesParam = false, notesTriggerParam = DEFAULT_NOTES_TRIGGER) {
   writeDebugLog(`===== BRIDGE START =====`);
   writeDebugLog(`Token: ${token.substring(0, 5)}...`);
+  writeDebugLog(`Host: ${host}`);
   writeDebugLog(`Port: ${port}`);
   writeDebugLog(`Debug mode: ${debugModeEnabled}`);
   writeDebugLog(`Use Notes: ${useNotesParam}, Trigger: "${notesTriggerParam}"`);
@@ -233,7 +235,8 @@ export function startBridge(token, port, debugModeEnabled, onStatus, intervalMs 
     return;
   }
   
-  // Set the ProPresenter API port from settings
+  // Set the ProPresenter API host and port from settings
+  PRO_API_HOST = host || '127.0.0.1';
   PRO_API_PORT = parseInt(port) || 55056;
   
   // Validate and clamp polling interval
