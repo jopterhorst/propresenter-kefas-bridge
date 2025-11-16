@@ -360,7 +360,7 @@
           <span class="status-badge status-idle" id="statusBadge">● Inactive</span>
           <span id="statusText" style="font-size: 13px; color: #a1a1a6;">Ready to start</span>
         </div>
-        <p class="info-text">ProPresenter 7 with REST API polling. Uses /v1/status/slide endpoint on port 55056.</p>
+        <p class="info-text">ProPresenter 7 with REST API polling. Uses /v1/status/slide endpoint on port 55056. Configured polling rate: <span id="currentPollRate" style="font-weight: 600; color: #ff9500;">5.0s</span></p>
         <div class="controls" style="margin-top: 16px;">
           <button class="btn-primary" id="start">Start Bridge</button>
           <button class="btn-secondary" id="stop">Stop Bridge</button>
@@ -388,6 +388,7 @@
       const debugToggle = document.getElementById('debugToggle');
       const statusBadge = document.getElementById('statusBadge');
       const statusText = document.getElementById('statusText');
+      const currentPollRate = document.getElementById('currentPollRate');
 
       let bridgeRunning = false;
       let connectionStatus = 'disconnected';
@@ -412,7 +413,10 @@
         if (bridgeRunning) {
           statusBadge.classList.add('status-running');
           statusBadge.textContent = '● Active';
-          statusText.textContent = 'Bridge is polling ProPresenter API every 5 seconds';
+          const pollInterval = parseInt(localStorage.getItem('pollInterval') || '5000');
+          const pollRateSeconds = (pollInterval / 1000).toFixed(1);
+          statusText.textContent = `Bridge is polling ProPresenter API every ${pollRateSeconds}s`;
+          currentPollRate.textContent = pollRateSeconds + 's';
         } else {
           statusBadge.classList.add('status-idle');
           statusBadge.textContent = '● Inactive';
@@ -448,7 +452,11 @@
         portInput.value = savedPort || '55056';
         
         const savedPollInterval = localStorage.getItem('pollInterval');
-        pollIntervalInput.value = savedPollInterval || '5000';
+        const pollInterval = savedPollInterval || '5000';
+        pollIntervalInput.value = pollInterval;
+        
+        const pollRateSeconds = (parseInt(pollInterval) / 1000).toFixed(1);
+        currentPollRate.textContent = pollRateSeconds + 's';
         
         const debugMode = localStorage.getItem('debugMode') === 'true';
         debugToggle.checked = debugMode;
@@ -481,6 +489,10 @@
         appendLog('✅ Settings saved successfully.');
         appendLog(`📡 ProPresenter port set to: ${port}`);
         appendLog(`⏱️ Polling interval set to: ${pollInterval}ms (${pollInterval / 1000}s)`);
+        
+        // Update the displayed polling rate
+        const pollRateSeconds = (pollInterval / 1000).toFixed(1);
+        currentPollRate.textContent = pollRateSeconds + 's';
         
         if (debugToggle.checked) {
           appendLog('🐛 Debug mode enabled.');
