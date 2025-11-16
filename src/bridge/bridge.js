@@ -1,10 +1,7 @@
 // bridge.js
-import fetch from 'node-fetch';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+const fs = require('fs');
+const path = require('path');
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEBUG_LOG_FILE = path.join(process.env.HOME || '/tmp', 'propresenter-kefas-bridge.log');
 
 function writeDebugLog(message) {
@@ -218,7 +215,7 @@ async function tick() {
 
 
 
-export function startBridge(token, host, port, debugModeEnabled, onStatus, intervalMs = DEFAULT_POLL_INTERVAL, useNotesParam = false, notesTriggerParam = DEFAULT_NOTES_TRIGGER) {
+function startBridge(token, host, port, debugModeEnabled, onStatus, intervalMs = DEFAULT_POLL_INTERVAL, useNotesParam = false, notesTriggerParam = DEFAULT_NOTES_TRIGGER) {
   writeDebugLog(`===== BRIDGE START =====`);
   writeDebugLog(`Token: ${token.substring(0, 5)}...`);
   writeDebugLog(`Host: ${host}`);
@@ -270,7 +267,7 @@ export function startBridge(token, host, port, debugModeEnabled, onStatus, inter
   tick();
 }
 
-export function stopBridge(onStatus) {
+function stopBridge(onStatus) {
   if (!isRunning) {
     onStatus?.('Bridge is not running.');
     return;
@@ -289,6 +286,9 @@ export function stopBridge(onStatus) {
   onStatus?.('Bridge stopped.');
 }
 
-export function getBridgeStatus() {
+function getBridgeStatus() {
   return { isRunning };
 }
+
+module.exports = { startBridge, stopBridge, getBridgeStatus };
+

@@ -18,3 +18,15 @@ contextBridge.exposeInMainWorld('bridgeAPI', {
     ipcRenderer.on('bridge:status', (_event, status) => callback(status));
   },
 });
+
+// Clipboard API
+contextBridge.exposeInMainWorld('clipboard', {
+  readText() {
+    return ipcRenderer.invoke('clipboard:readText');
+  },
+  writeText(text) {
+    return ipcRenderer.invoke('clipboard:writeText', text);
+  },
+});
+
+

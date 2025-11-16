@@ -4,7 +4,7 @@
   "description": "Bridge ProPresenter 7 lyrics to Kefas API",
   "author": "Jop ter Horst",
   "main": "src/main/main.js",
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",

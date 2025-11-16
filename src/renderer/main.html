@@ -353,9 +353,12 @@
 
       // Check if bridgeAPI is available
       if (!window.bridgeAPI) {
-        appendLog('Error: Bridge API not available. This is a development environment issue.');
+        const msg = 'Error: Bridge API not available. Check DevTools (Cmd+Option+I) for errors.';
+        appendLog(msg);
         console.error('window.bridgeAPI is undefined - preload.js may not be loaded');
+        console.error('Available APIs:', Object.keys(window).filter(k => k.includes('API') || k.includes('bridge')));
       } else {
+        console.log('Bridge API loaded successfully');
         // Set up IPC listeners
         window.bridgeAPI.onLog(appendLog);
         window.bridgeAPI.onStatus((status) => {

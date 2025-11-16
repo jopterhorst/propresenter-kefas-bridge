@@ -1,11 +1,8 @@
 // main.js
-import { app, BrowserWindow, ipcMain, Menu } from 'electron';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { startBridge, stopBridge, getBridgeStatus } from '../bridge/bridge.js';
+const { app, BrowserWindow, ipcMain, Menu, clipboard } = require('electron');
+const path = require('path');
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const { startBridge, stopBridge, getBridgeStatus } = require('../bridge/bridge.js');
 
 let mainWindow = null;
 let settingsWindow = null;
@@ -18,6 +15,7 @@ function createMainWindow() {
     webPreferences: {
       preload: path.join(__dirname, '../renderer/preload.js'),
       sandbox: false,
+      contextIsolation: true,
     },
   });
 
@@ -42,6 +40,7 @@ function createSettingsWindow() {
     webPreferences: {
       preload: path.join(__dirname, '../renderer/preload.js'),
       sandbox: false,
+      contextIsolation: true,
     },
   });
 
@@ -142,3 +141,13 @@ ipcMain.handle('bridge:stop', (event) => {
 ipcMain.handle('bridge:status', (event) => {
   return getBridgeStatus();
 });
+
+// Clipboard handlers
+ipcMain.handle('clipboard:readText', () => {
+  return clipboard.readText();
+});
+
+ipcMain.handle('clipboard:writeText', (event, text) => {
+  clipboard.writeText(text);
+});
+

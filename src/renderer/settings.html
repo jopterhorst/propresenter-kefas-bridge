@@ -397,15 +397,29 @@
         window.close();
       }
 
+      // Add keyboard paste support
+      function setupClipboard() {
+        document.addEventListener('keydown', async (e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
+            const target = document.activeElement;
+            if (target.matches('input[type="text"], input[type="password"], input[type="number"]')) {
+              e.preventDefault();
+              try {
+                const text = await window.clipboard.readText();
+                target.value += text;
+              } catch (err) {
+                console.error('Paste failed:', err);
+              }
+            }
+          }
+        });
+      }
+
       saveBtn.addEventListener('click', saveSettings);
-      
-      // Enable pasting on all input fields
-      document.querySelectorAll('input').forEach(input => {
-        input.addEventListener('paste', (e) => e.stopPropagation());
-      });
       
       // Initialize
       loadSettings();
+      setupClipboard();
     </script>
   </body>
 </html>
