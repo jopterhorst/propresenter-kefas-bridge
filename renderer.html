@@ -328,6 +328,18 @@
           />
           <p class="info-text">Default port is 55056. Change if ProPresenter is running on a different port.</p>
         </div>
+
+        <div class="form-group" style="margin-top: 16px; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 16px;">
+          <label for="pollIntervalInput">Polling Interval (milliseconds)</label>
+          <input 
+            type="number" 
+            id="pollIntervalInput" 
+            placeholder="5000"
+            min="100"
+            step="100"
+          />
+          <p class="info-text">How often to check ProPresenter for slide changes (minimum 100ms / 0.1s). Default is 5000ms (5 seconds).</p>
+        </div>
         
         <div class="form-group" style="margin-top: 16px; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 16px;">
           <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 0; font-weight: 500;">
@@ -344,7 +356,11 @@
           <div class="section-icon">▶️</div>
           Bridge Control
         </h3>
-        <p class="info-text">Make sure ProPresenter is running with the network API enabled on port 1025.</p>
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+          <span class="status-badge status-idle" id="statusBadge">● Inactive</span>
+          <span id="statusText" style="font-size: 13px; color: #a1a1a6;">Ready to start</span>
+        </div>
+        <p class="info-text">ProPresenter 7 with REST API polling. Uses /v1/status/slide endpoint on port 55056.</p>
         <div class="controls" style="margin-top: 16px;">
           <button class="btn-primary" id="start">Start Bridge</button>
           <button class="btn-secondary" id="stop">Stop Bridge</button>
@@ -367,10 +383,14 @@
       const stopBtn = document.getElementById('stop');
       const tokenInput = document.getElementById('tokenInput');
       const portInput = document.getElementById('portInput');
+      const pollIntervalInput = document.getElementById('pollIntervalInput');
       const saveTokenBtn = document.getElementById('saveToken');
       const debugToggle = document.getElementById('debugToggle');
+      const statusBadge = document.getElementById('statusBadge');
+      const statusText = document.getElementById('statusText');
 
       let bridgeRunning = false;
+      let connectionStatus = 'disconnected';
 
       function appendLog(msg) {
         const time = new Date().toLocaleTimeString('en-US', { 
@@ -383,6 +403,23 @@
         logEl.scrollTop = logEl.scrollHeight;
       }
 
+      function updateConnectionStatus(status) {
+        connectionStatus = status;
+        
+        // Update badge appearance based on whether bridge is running
+        statusBadge.className = 'status-badge';
+        
+        if (bridgeRunning) {
+          statusBadge.classList.add('status-running');
+          statusBadge.textContent = '● Active';
+          statusText.textContent = 'Bridge is polling ProPresenter API every 5 seconds';
+        } else {
+          statusBadge.classList.add('status-idle');
+          statusBadge.textContent = '● Inactive';
+          statusText.textContent = 'Ready to start - configure settings above';
+        }
+      }
+
       function updateButtonStates() {
         startBtn.disabled = bridgeRunning;
         stopBtn.disabled = !bridgeRunning;
@@ -393,6 +430,7 @@
         try {
           const status = await window.bridgeAPI.getStatus();
           bridgeRunning = status.isRunning;
+          updateConnectionStatus(status.connectionStatus || 'disconnected');
           updateButtonStates();
         } catch (err) {
           console.error('Failed to get bridge status:', err);
@@ -408,6 +446,9 @@
         
         const savedPort = localStorage.getItem('proPresenterPort');
         portInput.value = savedPort || '55056';
+        
+        const savedPollInterval = localStorage.getItem('pollInterval');
+        pollIntervalInput.value = savedPollInterval || '5000';
         
         const debugMode = localStorage.getItem('debugMode') === 'true';
         debugToggle.checked = debugMode;
@@ -427,11 +468,19 @@
           return;
         }
         
+        const pollInterval = parseInt(pollIntervalInput.value);
+        if (!pollInterval || pollInterval < 100) {
+          appendLog('❌ Error: Polling interval must be at least 100ms.');
+          return;
+        }
+        
         localStorage.setItem('kefasToken', token);
         localStorage.setItem('proPresenterPort', port);
+        localStorage.setItem('pollInterval', pollInterval);
         localStorage.setItem('debugMode', debugToggle.checked ? 'true' : 'false');
         appendLog('✅ Settings saved successfully.');
         appendLog(`📡 ProPresenter port set to: ${port}`);
+        appendLog(`⏱️ Polling interval set to: ${pollInterval}ms (${pollInterval / 1000}s)`);
         
         if (debugToggle.checked) {
           appendLog('🐛 Debug mode enabled.');
@@ -447,6 +496,7 @@
         window.bridgeAPI.onLog(appendLog);
         window.bridgeAPI.onStatus((status) => {
           bridgeRunning = status.isRunning;
+          updateConnectionStatus(status.connectionStatus || 'disconnected');
           updateButtonStates();
         });
       }
@@ -467,9 +517,10 @@
         }
         
         const port = parseInt(localStorage.getItem('proPresenterPort') || '55056');
+        const pollInterval = parseInt(localStorage.getItem('pollInterval') || '5000');
         const debugMode = debugToggle.checked;
         appendLog('▶️ Start requested.');
-        window.bridgeAPI.start(token, port, debugMode);
+        window.bridgeAPI.start(token, port, debugMode, pollInterval);
       });
 
       stopBtn.addEventListener('click', () => {

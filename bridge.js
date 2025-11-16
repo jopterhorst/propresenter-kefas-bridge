@@ -1,79 +1,41 @@
 // bridge.js
 import fetch from 'node-fetch';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-const PRO_HOST = '127.0.0.1';
-const KEFAS_BASE_URL = 'https://web.kefas.app';
-const KEFAS_MEETING_ID = 'live';
-const POLL_INTERVAL = 5000;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DEBUG_LOG_FILE = path.join(process.env.HOME || '/tmp', 'propresenter-kefas-bridge.log');
 
-let lastSentLyric = null;
-let timer = null;
-let kefasToken = null;
-let debugMode = false;
-let isRunning = false;
-let proPresenterPort = 55056;
-
-async function getProPresenterSlideStatus() {
-  const url = `http://${PRO_HOST}:${proPresenterPort}/v1/status/slide`;
-  
-  // Add 5 second timeout to prevent hanging
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000);
-  
+function writeDebugLog(message) {
   try {
-    if (debugMode) console.debug(`[DEBUG] Fetching ProPresenter status from ${url}`);
-    
-    const startTime = Date.now();
-    const res = await fetch(url, { signal: controller.signal });
-    const duration = Date.now() - startTime;
-
-    if (debugMode) console.debug(`[DEBUG] Response status: ${res.status} (${duration}ms)`);
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`ProPresenter API error ${res.status}: ${text || res.statusText}`);
-    }
-
-    const json = await res.json();
-    if (debugMode) console.debug(`[DEBUG] ProPresenter response:`, json);
-    return json;
-  } finally {
-    clearTimeout(timeout);
+    const timestamp = new Date().toISOString();
+    const line = `[${timestamp}] ${message}\n`;
+    fs.appendFileSync(DEBUG_LOG_FILE, line);
+    console.log(`[LOG] ${message}`);
+  } catch (err) {
+    console.error('Failed to write debug log:', err.message);
   }
 }
 
-function extractCurrentLyric(statusJson) {
-  if (!statusJson) {
-    if (debugMode) console.debug(`[DEBUG] Status JSON is null/undefined`);
-    return null;
-  }
+const PRO_HOST = '127.0.0.1';
+const PRO_API_PORT = 55056; // ProPresenter API port
+const KEFAS_BASE_URL = 'https://web.kefas.app';
+const KEFAS_MEETING_ID = 'live';
+const DEFAULT_POLL_INTERVAL = 5000; // Default: Poll every 5 seconds
+const MIN_POLL_INTERVAL = 100; // Minimum: 0.1 seconds
 
-  // ProPresenter API returns: { current: { text, notes, uuid }, next: { ... } }
-  let text = statusJson?.current?.text;
-  
-  if (debugMode) {
-    console.debug(`[DEBUG] statusJson.current exists:`, !!statusJson?.current);
-    console.debug(`[DEBUG] statusJson.current.text:`, text);
-    console.debug(`[DEBUG] statusJson.current.uuid:`, statusJson?.current?.uuid);
-  }
-  
-  if (!text) {
-    if (debugMode) console.debug(`[DEBUG] No text found in current slide`);
-    return null;
-  }
+let lastSentLyric = null;
+let pollTimer = null;
+let pollInterval = DEFAULT_POLL_INTERVAL;
+let kefasToken = null;
+let debugMode = false;
+let isRunning = false;
+let onStatusCallback = null;
 
-  // Handle array of strings (each line)
-  if (Array.isArray(text)) {
-    text = text.join('\n').trim();
-    if (debugMode) console.debug(`[DEBUG] Converted array text to string: ${text.substring(0, 100)}...`);
-  } else if (typeof text === 'string') {
-    text = text.trim();
-  } else {
-    text = String(text).trim();
-  }
-
-  if (debugMode) console.debug(`[DEBUG] Extracted lyric (${text.length} chars): ${text.substring(0, 100)}...`);
-  return text || null;
+function updateStatus(message) {
+  if (debugMode) console.debug(`[DEBUG] Status: ${message}`);
+  onStatusCallback?.(message);
 }
 
 async function sendToKefas(content) {
@@ -82,6 +44,9 @@ async function sendToKefas(content) {
   }
 
   const url = `${KEFAS_BASE_URL}/api/public/meetings/${KEFAS_MEETING_ID}/messages`;
+  
+  writeDebugLog(`[SEND] Sending to Kefas - length: ${content.length} chars`);
+  writeDebugLog(`[SEND] Content: "${content.substring(0, 200)}${content.length > 200 ? '...' : ''}"`);
   
   if (debugMode) {
     console.debug(`[DEBUG] Sending to Kefas: ${url}`);
@@ -101,6 +66,7 @@ async function sendToKefas(content) {
   const duration = Date.now() - startTime;
 
   if (debugMode) console.debug(`[DEBUG] Kefas response status: ${res.status} (${duration}ms)`);
+  writeDebugLog(`[SEND] Kefas response: ${res.status} (${duration}ms)`);
 
   if (!res.ok) {
     const error = await res.text().catch(() => '');
@@ -109,25 +75,89 @@ async function sendToKefas(content) {
 
   const json = await res.json();
   if (debugMode) console.debug(`[DEBUG] Kefas response:`, json);
+  writeDebugLog(`[SEND] ✅ Successfully sent to Kefas`);
   return json;
 }
 
-async function tick(onStatus) {
+function extractCurrentLyric(statusJson) {
+  if (!statusJson) {
+    writeDebugLog(`[EXTRACT] Status JSON is null/undefined`);
+    if (debugMode) console.debug(`[DEBUG] Status JSON is null/undefined`);
+    return null;
+  }
+
+  // Check multiple possible locations where ProPresenter might put the slide text
+  const candidates = [
+    statusJson?.data?.current?.text,
+    statusJson?.data?.slide?.current?.text,
+    statusJson?.current?.text,
+    statusJson?.slide?.text,
+  ];
+
+  let text = candidates.find((v) => !!v);
+  
+  if (!text) {
+    writeDebugLog(`[EXTRACT] No text found in any candidate field`);
+    if (debugMode) console.debug(`[DEBUG] No text found in status:`, statusJson);
+    return null;
+  }
+
+  if (Array.isArray(text)) {
+    text = text.join('\n').trim();
+    writeDebugLog(`[EXTRACT] Text was array, joined into single string`);
+  } else if (typeof text === 'string') {
+    text = text.trim();
+  } else {
+    text = String(text).trim();
+  }
+
+  if (debugMode) {
+    console.debug(`[DEBUG] Extracted text:`, text);
+  }
+
+  writeDebugLog(`[EXTRACT] Final extracted text: ${text ? `"${text.substring(0, 150)}${text.length > 150 ? '...' : ''}"` : 'NULL'}`);
+  return text || null;
+}
+
+async function getProPresenterSlideStatus() {
+  const url = `http://${PRO_HOST}:${PRO_API_PORT}/v1/status/slide`;
+  
+  if (debugMode) console.debug(`[DEBUG] Fetching from: ${url}`);
+  writeDebugLog(`[API] Fetching ProPresenter slide status from ${url}`);
+  
   try {
-    if (debugMode) console.debug(`[DEBUG] === Polling cycle starting ===`);
+    const res = await fetch(url);
     
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      writeDebugLog(`[API] Error: ${res.status} - ${text || res.statusText}`);
+      throw new Error(`ProPresenter API error ${res.status}: ${text || res.statusText}`);
+    }
+
+    const json = await res.json();
+    if (debugMode) console.debug(`[DEBUG] ProPresenter API response:`, json);
+    writeDebugLog(`[API] Got response from ProPresenter API`);
+    return json;
+  } catch (err) {
+    writeDebugLog(`[API] Fetch error: ${err.message}`);
+    throw err;
+  }
+}
+
+async function tick() {
+  try {
     const status = await getProPresenterSlideStatus();
     const lyric = extractCurrentLyric(status);
 
     if (!lyric) {
       if (debugMode) console.debug(`[DEBUG] No lyric found on current slide`);
-      onStatus?.('⏸️ No lyric found on current slide.');
+      updateStatus('⏸️ No lyric found on current slide.');
       return;
     }
 
     if (lyric === lastSentLyric) {
       if (debugMode) console.debug(`[DEBUG] Lyric unchanged, skipping send`);
-      onStatus?.('➡️ Lyric unchanged, skipping.');
+      writeDebugLog(`[POLL] Lyric unchanged, not sending`);
       return;
     }
 
@@ -137,18 +167,29 @@ async function tick(onStatus) {
       console.debug(`[DEBUG] New lyric: ${lyric.substring(0, 100)}...`);
     }
 
-    onStatus?.(`📤 Sending: ${JSON.stringify(lyric.substring(0, 50))}${lyric.length > 50 ? '...' : ''}`);
+    writeDebugLog(`[POLL] New lyric detected - length: ${lyric.length} chars`);
+    writeDebugLog(`[POLL] Content: "${lyric.substring(0, 200)}${lyric.length > 200 ? '...' : ''}"`);
+    updateStatus(`📤 Sending: ${JSON.stringify(lyric.substring(0, 50))}${lyric.length > 50 ? '...' : ''}`);
     await sendToKefas(lyric);
     lastSentLyric = lyric;
-    onStatus?.('✅ Sent to Kefas successfully.');
+    writeDebugLog(`[POLL] ✅ Successfully sent to Kefas`);
+    updateStatus('✅ Sent to Kefas successfully.');
   } catch (err) {
-    onStatus?.(`❌ Error: ${err.message}`);
-    if (debugMode) console.error(`[DEBUG] Error in tick():`, err);
+    updateStatus(`❌ Error: ${err.message}`);
+    writeDebugLog(`[POLL] ❌ Error: ${err.message}`);
+    if (debugMode) console.error(`[DEBUG] Error in tick:`, err);
   }
 }
 
-export function startBridge(token, port, debugModeEnabled, onStatus) {
-  if (timer) {
+
+
+export function startBridge(token, port, debugModeEnabled, onStatus, intervalMs = DEFAULT_POLL_INTERVAL) {
+  writeDebugLog(`===== BRIDGE START =====`);
+  writeDebugLog(`Token: ${token.substring(0, 5)}...`);
+  writeDebugLog(`Port: ${port}`);
+  writeDebugLog(`Debug mode: ${debugModeEnabled}`);
+  
+  if (isRunning) {
     onStatus?.('⚠️ Bridge is already running.');
     return;
   }
@@ -156,34 +197,53 @@ export function startBridge(token, port, debugModeEnabled, onStatus) {
     onStatus?.('❌ Error: Kefas token is required.');
     return;
   }
-  if (!port || port < 1 || port > 65535) {
-    onStatus?.('❌ Error: Invalid ProPresenter port.');
-    return;
+  
+  // Validate and clamp polling interval
+  let validInterval = parseInt(intervalMs) || DEFAULT_POLL_INTERVAL;
+  if (validInterval < MIN_POLL_INTERVAL) {
+    validInterval = MIN_POLL_INTERVAL;
+    writeDebugLog(`Polling interval too low, clamped to minimum: ${MIN_POLL_INTERVAL}ms`);
   }
+  pollInterval = validInterval;
   
   debugMode = debugModeEnabled || false;
   kefasToken = token;
-  proPresenterPort = port;
   isRunning = true;
+  onStatusCallback = onStatus;
+  lastSentLyric = null;
   
   if (debugMode) console.debug(`[DEBUG] Debug mode enabled`);
-  console.log(`Bridge starting with debug mode: ${debugMode}, ProPresenter port: ${proPresenterPort}`);
+  console.log(`Bridge starting with polling on port ${PRO_API_PORT}, interval: ${pollInterval}ms, debug mode: ${debugMode}`);
+  writeDebugLog(`Bridge starting - polling ProPresenter API on port ${PRO_API_PORT} with interval ${pollInterval}ms`);
   
-  onStatus?.(`▶️ Starting bridge on port ${port}…`);
-  tick(onStatus);
-  timer = setInterval(() => tick(onStatus), POLL_INTERVAL);
+  onStatus?.(`▶️ Starting bridge - polling ProPresenter API every ${pollInterval/1000}s…`);
+  
+  // Start polling
+  pollTimer = setInterval(() => {
+    tick();
+  }, pollInterval);
+  
+  // Do initial check immediately
+  tick();
 }
 
 export function stopBridge(onStatus) {
-  if (timer) {
-    clearInterval(timer);
-    timer = null;
-    lastSentLyric = null; // Reset state
-    isRunning = false;
-    onStatus?.('⏹️ Bridge stopped.');
-  } else {
+  if (!isRunning) {
     onStatus?.('⚠️ Bridge is not running.');
+    return;
   }
+
+  isRunning = false;
+  lastSentLyric = null;
+  onStatusCallback = null;
+
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+
+  writeDebugLog(`===== BRIDGE STOPPED =====`);
+  onStatus?.('⏹️ Bridge stopped.');
 }
 
 export function getBridgeStatus() {

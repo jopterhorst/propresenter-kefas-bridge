@@ -2,8 +2,8 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('bridgeAPI', {
-  start(token, port, debugMode) {
-    return ipcRenderer.invoke('bridge:start', token, port, debugMode);
+  start(token, port, debugMode, pollInterval) {
+    return ipcRenderer.invoke('bridge:start', token, port, debugMode, pollInterval);
   },
   stop() {
     return ipcRenderer.invoke('bridge:stop');

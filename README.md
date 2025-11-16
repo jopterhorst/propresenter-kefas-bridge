@@ -11,7 +11,9 @@ An Electron app that bridges ProPresenter 7 lyrics to Kefas API, automatically s
 - Responsive 700x900 window
 
 🎵 **Real-Time Lyric Bridging**
-- Polls ProPresenter API every 5 seconds
+- WebSocket real-time updates from ProPresenter 7
+- Instant delivery - no polling delays
+- Automatic reconnection with 10 retry attempts
 - Detects lyric changes automatically
 - Only sends when lyrics change (no duplicates)
 - Supports multi-line lyrics
@@ -87,8 +89,9 @@ npm run build:linux    # Linux (AppImage + DEB)
 - **Meeting ID**: `live`
 
 ### Polling
-- **Interval**: 5 seconds
-- **Timeout**: 5 seconds per request
+- **Method**: WebSocket real-time subscription (instead of polling)
+- **Reconnection**: Automatic retry up to 10 attempts
+- **Reconnect Interval**: 3 seconds between attempts
 
 ## Debug Mode
 
@@ -106,7 +109,14 @@ See [DEBUG_MODE.md](DEBUG_MODE.md) for detailed debug documentation.
 - ProPresenter not running
 - Check port (default: 55056)
 - Verify network API is enabled in ProPresenter
-- Enable Debug Mode to see exact URL
+- Enable Debug Mode to see exact WebSocket URL
+- Check bridge status display shows "Disconnected"
+
+### Connection Dropped
+- Bridge will automatically attempt to reconnect (up to 10 times)
+- Check ProPresenter is still running
+- Monitor Activity Log for reconnection messages
+- Manual restart may be needed if reconnect fails
 
 ### Kefas API Error 401
 - Invalid or expired token

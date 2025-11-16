@@ -46,13 +46,13 @@ app.on('window-all-closed', () => {
 });
 
 // IPC: handle start/stop from renderer
-ipcMain.handle('bridge:start', (event, token, port, debugMode) => {
+ipcMain.handle('bridge:start', (event, token, port, debugMode, pollInterval) => {
   startBridge(token, port, debugMode, (msg) => {
     // send log messages back to renderer
     mainWindow?.webContents.send('bridge:log', msg);
     // also send status update
     mainWindow?.webContents.send('bridge:status', getBridgeStatus());
-  });
+  }, pollInterval);
   return { success: true };
 });
 
