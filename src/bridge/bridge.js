@@ -19,7 +19,7 @@ function writeDebugLog(message) {
 }
 
 const PRO_HOST = '127.0.0.1';
-const PRO_API_PORT = 55056; // ProPresenter API port
+let PRO_API_PORT = 55056; // ProPresenter API port (can be overridden)
 const KEFAS_BASE_URL = 'https://web.kefas.app';
 const KEFAS_MEETING_ID = 'live';
 const DEFAULT_POLL_INTERVAL = 5000; // Default: Poll every 5 seconds
@@ -232,6 +232,9 @@ export function startBridge(token, port, debugModeEnabled, onStatus, intervalMs 
     onStatus?.('Error: Kefas token is required.');
     return;
   }
+  
+  // Set the ProPresenter API port from settings
+  PRO_API_PORT = parseInt(port) || 55056;
   
   // Validate and clamp polling interval
   let validInterval = parseInt(intervalMs) || DEFAULT_POLL_INTERVAL;
