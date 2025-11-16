@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Settings - ProPresenter Kefas Bridge</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+        background: linear-gradient(135deg, #f5f5f7 0%, #e8e8eb 100%);
+        min-height: 100vh;
+        padding: 12px;
+      }
+
+      .container {
+        max-width: 500px;
+        margin: 0 auto;
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 8px;
+      }
+
+      .header h1 {
+        display: none;
+      }
+
+      .header p {
+        display: none;
+      }
+
+      .card {
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        border-radius: 18px;
+        padding: 16px;
+        margin-bottom: 12px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      }
+
+      .card h3 {
+        font-size: 16px;
+        font-weight: 600;
+        color: #1d1d1f;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .section-icon {
+        width: 20px;
+        height: 20px;
+        background: linear-gradient(135deg, #ff9500 0%, #ff6b35 100%);
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .form-group {
+        margin-bottom: 12px;
+      }
+
+      .form-group:last-child {
+        margin-bottom: 0;
+      }
+
+      label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        color: #1d1d1f;
+        margin-bottom: 8px;
+        letter-spacing: 0.3px;
+      }
+
+      input[type="text"],
+      input[type="password"],
+      input[type="number"] {
+        width: 100%;
+        padding: 12px 14px;
+        border: 1.5px solid rgba(0, 0, 0, 0.08);
+        border-radius: 10px;
+        font-size: 14px;
+        font-family: inherit;
+        background: rgba(255, 255, 255, 0.9);
+        transition: all 0.2s ease;
+      }
+
+      input[type="text"]:focus,
+      input[type="password"]:focus,
+      input[type="number"]:focus {
+        outline: none;
+        border-color: #ff9500;
+        box-shadow: 0 0 0 3px rgba(255, 149, 0, 0.1);
+        background: white;
+      }
+
+      input[type="text"]::placeholder,
+      input[type="password"]::placeholder,
+      input[type="number"]::placeholder {
+        color: #a1a1a6;
+      }
+
+      input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+      }
+
+      button {
+        width: 100%;
+        padding: 11px 16px;
+        border: none;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        letter-spacing: 0.2px;
+      }
+
+      .btn-primary {
+        background: linear-gradient(135deg, #ff9500 0%, #ff6b35 100%);
+        color: white;
+        box-shadow: 0 4px 12px rgba(255, 149, 0, 0.3);
+      }
+
+      .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(255, 149, 0, 0.4);
+      }
+
+      .btn-primary:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 8px rgba(255, 149, 0, 0.2);
+      }
+
+      .info-text {
+        font-size: 12px;
+        color: #a1a1a6;
+        margin-top: 6px;
+        line-height: 1.5;
+      }
+
+      /* Dark mode support */
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: linear-gradient(135deg, #1d1d1f 0%, #2a2a2e 100%);
+        }
+
+        .card {
+          background: rgba(45, 45, 50, 0.6);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .card h3 {
+          color: #f5f5f7;
+        }
+
+        .header h1 {
+          color: #f5f5f7;
+        }
+
+        .header p {
+          color: #a1a1a6;
+        }
+
+        label {
+          color: #f5f5f7;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        input[type="number"] {
+          background: rgba(255, 255, 255, 0.08);
+          border-color: rgba(255, 255, 255, 0.1);
+          color: #f5f5f7;
+        }
+
+        input[type="text"]:focus,
+        input[type="password"]:focus,
+        input[type="number"]:focus {
+          background: rgba(255, 255, 255, 0.12);
+          box-shadow: 0 0 0 3px rgba(255, 149, 0, 0.15);
+        }
+
+        input[type="text"]::placeholder,
+        input[type="password"]::placeholder,
+        input[type="number"]::placeholder {
+          color: #6f6f77;
+        }
+
+        .info-text {
+          color: #6f6f77;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>Settings</h1>
+        <p>Configure ProPresenter and Kefas integration</p>
+      </div>
+
+      <!-- Kefas Card -->
+      <div class="card">
+        <h3>
+          <div class="section-icon">⚙</div>
+          Kefas API
+        </h3>
+        <div class="form-group">
+          <label for="tokenInput">API Token</label>
+          <input 
+            type="password" 
+            id="tokenInput" 
+            placeholder="Paste your Kefas API token"
+          />
+          <p class="info-text">Your token is stored locally and never sent anywhere except Kefas API.</p>
+        </div>
+      </div>
+
+      <!-- ProPresenter Card -->
+      <div class="card">
+        <h3>
+          <div class="section-icon">▶</div>
+          ProPresenter API
+        </h3>
+        <div class="form-group">
+          <label for="portInput">API Port</label>
+          <input 
+            type="number" 
+            id="portInput" 
+            placeholder="55056"
+            min="1"
+            max="65535"
+          />
+          <p class="info-text">Default port is 55056. Change if ProPresenter is running on a different port.</p>
+        </div>
+
+        <div class="form-group" style="margin-top: 16px; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 16px;">
+          <label for="pollIntervalInput">Polling Interval (milliseconds)</label>
+          <input 
+            type="number" 
+            id="pollIntervalInput" 
+            placeholder="5000"
+            min="100"
+            step="100"
+          />
+          <p class="info-text">How often to check ProPresenter for slide changes (minimum 100ms). Default: 5000ms (5 seconds).</p>
+        </div>
+      </div>
+
+      <!-- Notes Feature Card -->
+      <div class="card">
+        <h3>
+          <div class="section-icon">📝</div>
+          Notes Feature
+        </h3>
+        <div class="form-group">
+          <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-weight: 500; cursor: pointer;">
+            <input type="checkbox" id="useNotesToggle" style="cursor: pointer;">
+            <span>Use Notes Instead of Text</span>
+          </label>
+          <p class="info-text">When the trigger string is found in slide text, use the notes field instead. Useful for bilingual presentations.</p>
+        </div>
+
+        <div class="form-group" style="margin-top: 16px; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 16px;">
+          <label for="notesTriggerInput">Notes Trigger String</label>
+          <input 
+            type="text" 
+            id="notesTriggerInput" 
+            placeholder="Current Slide Notes"
+          />
+          <p class="info-text">If slide text contains this string, use notes attribute instead. Default: "Current Slide Notes"</p>
+        </div>
+      </div>
+
+      <!-- Debug Card -->
+      <div class="card">
+        <h3>
+          <div class="section-icon">🔧</div>
+          Debug
+        </h3>
+        <div class="form-group">
+          <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 0; font-weight: 500; cursor: pointer;">
+            <input type="checkbox" id="debugToggle" style="cursor: pointer;">
+            <span>Debug Mode</span>
+          </label>
+          <p class="info-text" style="margin-top: 8px;">Enable verbose logging to browser console. Press Cmd+Option+I to view logs.</p>
+        </div>
+      </div>
+
+      <!-- Save Button -->
+      <button class="btn-primary" id="saveBtn" style="margin-top: 8px; margin-bottom: 32px;">Save and Close</button>
+    </div>
+
+    <script>
+      const tokenInput = document.getElementById('tokenInput');
+      const portInput = document.getElementById('portInput');
+      const pollIntervalInput = document.getElementById('pollIntervalInput');
+      const useNotesToggle = document.getElementById('useNotesToggle');
+      const notesTriggerInput = document.getElementById('notesTriggerInput');
+      const debugToggle = document.getElementById('debugToggle');
+      const saveBtn = document.getElementById('saveBtn');
+
+      // Load settings from localStorage on startup
+      function loadSettings() {
+        const savedToken = localStorage.getItem('kefasToken');
+        if (savedToken) {
+          tokenInput.value = savedToken;
+        }
+        
+        const savedPort = localStorage.getItem('proPresenterPort');
+        portInput.value = savedPort || '55056';
+        
+        const savedPollInterval = localStorage.getItem('pollInterval');
+        pollIntervalInput.value = savedPollInterval || '5000';
+        
+        const useNotes = localStorage.getItem('useNotes') === 'true';
+        useNotesToggle.checked = useNotes;
+        
+        const notesTrigger = localStorage.getItem('notesTrigger');
+        notesTriggerInput.value = notesTrigger || 'Current Slide Notes';
+        
+        const debugMode = localStorage.getItem('debugMode') === 'true';
+        debugToggle.checked = debugMode;
+      }
+
+      // Save settings to localStorage
+      function saveSettings() {
+        const token = tokenInput.value.trim();
+        if (!token) {
+          alert('Kefas token cannot be empty.');
+          return;
+        }
+        
+        const port = parseInt(portInput.value);
+        if (!port || port < 1 || port > 65535) {
+          alert('Port must be between 1 and 65535.');
+          return;
+        }
+        
+        const pollInterval = parseInt(pollIntervalInput.value);
+        if (!pollInterval || pollInterval < 100) {
+          alert('Polling interval must be at least 100ms.');
+          return;
+        }
+        
+        const notesTrigger = notesTriggerInput.value.trim();
+        if (!notesTrigger) {
+          alert('Notes trigger string cannot be empty.');
+          return;
+        }
+        
+        localStorage.setItem('kefasToken', token);
+        localStorage.setItem('proPresenterPort', port);
+        localStorage.setItem('pollInterval', pollInterval);
+        localStorage.setItem('useNotes', useNotesToggle.checked ? 'true' : 'false');
+        localStorage.setItem('notesTrigger', notesTrigger);
+        localStorage.setItem('debugMode', debugToggle.checked ? 'true' : 'false');
+        
+        alert('Settings saved successfully!');
+        window.close();
+      }
+
+      saveBtn.addEventListener('click', saveSettings);
+      
+      // Initialize
+      loadSettings();
+    </script>
+  </body>
+</html>

@@ -27,7 +27,8 @@
       "src/main/main.js",
       "src/bridge/bridge.js",
       "src/renderer/preload.js",
-      "src/renderer/renderer.html",
+      "src/renderer/main.html",
+      "src/renderer/settings.html",
       "src/assets/icon.png",
       "package.json"
     ],

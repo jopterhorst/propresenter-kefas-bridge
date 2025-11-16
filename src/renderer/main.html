@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>ProPresenter → Kefas Bridge</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+        background: linear-gradient(135deg, #f5f5f7 0%, #e8e8eb 100%);
+        min-height: 100vh;
+        padding: 12px;
+      }
+
+      .container {
+        max-width: 440px;
+        margin: 0 auto;
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 8px;
+      }
+
+      .header h1 {
+        display: none;
+      }
+
+      .header p {
+        display: none;
+      }
+
+      .card {
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        border-radius: 18px;
+        padding: 16px;
+        margin-bottom: 12px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      }
+
+      .card h3 {
+        font-size: 16px;
+        font-weight: 600;
+        color: #1d1d1f;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .section-icon {
+        width: 20px;
+        height: 20px;
+        background: linear-gradient(135deg, #ff9500 0%, #ff6b35 100%);
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      button {
+        width: 100%;
+        padding: 11px 16px;
+        border: none;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        letter-spacing: 0.2px;
+      }
+
+      .btn-primary {
+        background: linear-gradient(135deg, #ff9500 0%, #ff6b35 100%);
+        color: white;
+        box-shadow: 0 4px 12px rgba(255, 149, 0, 0.3);
+      }
+
+      .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(255, 149, 0, 0.4);
+      }
+
+      .btn-primary:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 8px rgba(255, 149, 0, 0.2);
+      }
+
+      .btn-primary:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        box-shadow: none;
+      }
+
+      .btn-primary:disabled:hover {
+        transform: none;
+        box-shadow: none;
+      }
+
+      .btn-secondary {
+        background: rgba(0, 0, 0, 0.06);
+        color: #1d1d1f;
+        border: 1.5px solid rgba(0, 0, 0, 0.08);
+      }
+
+      .btn-secondary:hover {
+        background: rgba(0, 0, 0, 0.1);
+        border-color: rgba(0, 0, 0, 0.12);
+      }
+
+      .btn-secondary:active {
+        background: rgba(0, 0, 0, 0.08);
+      }
+
+      .btn-secondary:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .btn-secondary:disabled:hover {
+        background: rgba(0, 0, 0, 0.06);
+        border-color: rgba(0, 0, 0, 0.08);
+      }
+
+      .controls {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 12px;
+      }
+
+      .controls button {
+        padding: 14px 20px;
+        font-size: 15px;
+      }
+
+      #log {
+        background: rgba(0, 0, 0, 0.85);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 16px;
+        height: 240px;
+        overflow-y: auto;
+        font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+        font-size: 12px;
+        line-height: 1.6;
+        color: #00d084;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      #log::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      #log::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 4px;
+      }
+
+      #log::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 4px;
+      }
+
+      #log::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.25);
+      }
+
+      .info-text {
+        font-size: 12px;
+        color: #a1a1a6;
+        margin-top: 8px;
+        line-height: 1.5;
+      }
+
+      .status-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        margin-right: 8px;
+      }
+
+      .status-running {
+        background: rgba(0, 208, 132, 0.15);
+        color: #00d084;
+      }
+
+      .status-idle {
+        background: rgba(161, 161, 166, 0.15);
+        color: #a1a1a6;
+      }
+
+      /* Dark mode support */
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: linear-gradient(135deg, #1d1d1f 0%, #2a2a2e 100%);
+        }
+
+        .card {
+          background: rgba(45, 45, 50, 0.6);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .card h3 {
+          color: #f5f5f7;
+        }
+
+        .header h1 {
+          color: #f5f5f7;
+        }
+
+        .header p {
+          color: #a1a1a6;
+        }
+
+        .btn-secondary {
+          background: rgba(255, 255, 255, 0.08);
+          color: #f5f5f7;
+          border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-secondary:hover {
+          background: rgba(255, 255, 255, 0.12);
+          border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .info-text {
+          color: #6f6f77;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>ProPresenter Kefas</h1>
+        <p>Bridge your lyrics to the web in real-time</p>
+      </div>
+
+      <!-- Controls Card -->
+      <div class="card">
+        <h3>
+          <div class="section-icon">▶</div>
+          Bridge Control
+        </h3>
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+          <span class="status-badge status-idle" id="statusBadge">Inactive</span>
+          <span id="statusText" style="font-size: 13px; color: #a1a1a6;">Ready to start</span>
+        </div>
+        <p class="info-text">ProPresenter 7 with REST API polling. Uses /v1/status/slide endpoint. Configured polling rate: <span id="currentPollRate" style="font-weight: 600; color: #ff9500;">5.0s</span></p>
+        <div class="controls">
+          <button class="btn-primary" id="start">Start Bridge</button>
+          <button class="btn-secondary" id="stop">Stop Bridge</button>
+        </div>
+      </div>
+
+      <!-- Logs Card -->
+      <div class="card">
+        <h3>
+          <div class="section-icon">≡</div>
+          Activity Log
+        </h3>
+        <div id="log"></div>
+        <button class="btn-secondary" id="downloadLogBtn" style="width: 100%; margin-top: 8px;">Download Log</button>
+      </div>
+
+      <!-- Settings Link -->
+      <div style="text-align: center; margin-top: 24px;">
+        <p style="font-size: 13px; color: #a1a1a6;">Configure settings via <strong>Application → Settings</strong> or press <strong>Cmd+,</strong></p>
+      </div>
+    </div>
+
+    <script>
+      const logEl = document.getElementById('log');
+      const startBtn = document.getElementById('start');
+      const stopBtn = document.getElementById('stop');
+      const statusBadge = document.getElementById('statusBadge');
+      const statusText = document.getElementById('statusText');
+      const currentPollRate = document.getElementById('currentPollRate');
+
+      let bridgeRunning = false;
+
+      function appendLog(msg) {
+        const time = new Date().toLocaleTimeString('en-US', { 
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+        logEl.textContent += `[${time}] ${msg}\n`;
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      function downloadLog() {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+        const filename = `bridge-log-${timestamp}.txt`;
+        const element = document.createElement('a');
+        element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(logEl.textContent));
+        element.setAttribute('download', filename);
+        element.style.display = 'none';
+        document.body.appendChild(element);
+        element.click();
+        document.body.removeChild(element);
+      }
+
+      function updateConnectionStatus() {
+        statusBadge.className = 'status-badge';
+        
+        if (bridgeRunning) {
+          statusBadge.classList.add('status-running');
+          statusBadge.textContent = 'Active';
+          const pollInterval = parseInt(localStorage.getItem('pollInterval') || '5000');
+          const pollRateSeconds = (pollInterval / 1000).toFixed(1);
+          statusText.textContent = `Polling ProPresenter every ${pollRateSeconds}s`;
+          currentPollRate.textContent = pollRateSeconds + 's';
+        } else {
+          statusBadge.classList.add('status-idle');
+          statusBadge.textContent = 'Inactive';
+          statusText.textContent = 'Ready to start';
+        }
+      }
+
+      function updateButtonStates() {
+        startBtn.disabled = bridgeRunning;
+        stopBtn.disabled = !bridgeRunning;
+      }
+
+      async function syncBridgeStatus() {
+        if (!window.bridgeAPI) return;
+        try {
+          const status = await window.bridgeAPI.getStatus();
+          bridgeRunning = status.isRunning;
+          updateConnectionStatus();
+          updateButtonStates();
+        } catch (err) {
+          console.error('Failed to get bridge status:', err);
+        }
+      }
+
+      // Check if bridgeAPI is available
+      if (!window.bridgeAPI) {
+        appendLog('Error: Bridge API not available. This is a development environment issue.');
+        console.error('window.bridgeAPI is undefined - preload.js may not be loaded');
+      } else {
+        // Set up IPC listeners
+        window.bridgeAPI.onLog(appendLog);
+        window.bridgeAPI.onStatus((status) => {
+          bridgeRunning = status.isRunning;
+          updateConnectionStatus();
+          updateButtonStates();
+        });
+      }
+
+      // Set up button listeners
+      startBtn.addEventListener('click', () => {
+        if (!window.bridgeAPI) {
+          appendLog('Error: Bridge API not available.');
+          return;
+        }
+        
+        const token = localStorage.getItem('kefasToken');
+        if (!token) {
+          appendLog('Error: Please set your Kefas token first in Settings.');
+          return;
+        }
+        
+        const port = parseInt(localStorage.getItem('proPresenterPort') || '55056');
+        const pollInterval = parseInt(localStorage.getItem('pollInterval') || '5000');
+        const useNotes = localStorage.getItem('useNotes') === 'true';
+        const notesTrigger = localStorage.getItem('notesTrigger') || 'Current Slide Notes';
+        const debugMode = localStorage.getItem('debugMode') === 'true';
+        appendLog('Start requested.');
+        window.bridgeAPI.start(token, port, debugMode, pollInterval, useNotes, notesTrigger);
+      });
+
+      stopBtn.addEventListener('click', () => {
+        if (!window.bridgeAPI) {
+          appendLog('Error: Bridge API not available.');
+          return;
+        }
+        
+        appendLog('Stop requested.');
+        window.bridgeAPI.stop();
+      });
+
+      document.getElementById('downloadLogBtn').addEventListener('click', downloadLog);
+
+      // Initialize
+      syncBridgeStatus();
+      updateConnectionStatus();
+      
+      // Update polling rate display on page load
+      const pollInterval = parseInt(localStorage.getItem('pollInterval') || '5000');
+      const pollRateSeconds = (pollInterval / 1000).toFixed(1);
+      currentPollRate.textContent = pollRateSeconds + 's';
+      
+      // Periodically sync status (every 2 seconds)
+      setInterval(syncBridgeStatus, 2000);
+    </script>
+  </body>
+</html>
