@@ -1,14 +1,16 @@
 # ProPresenter Kefas Bridge
 
-Automatically send lyrics from ProPresenter 7 slides to Kefas in real-time using WebSocket triggers.
+Automatically send lyrics from ProPresenter slides to Kefas in real-time using WebSocket triggers.
 
 ## What It Does
 
 This app connects to ProPresenter via WebSocket and automatically sends the current slide lyrics to Kefas whenever you change slides. No polling, no delays—instant synchronization.
 
+![Main App Interface](img/main.png)
+
 ## Requirements
 
-- **ProPresenter 7** with Remote Control enabled
+- **ProPresenter** with Remote Control enabled
 - **Kefas account** with API token
 - **macOS, Windows, or Linux**
 
@@ -20,7 +22,7 @@ Log into your Kefas account and create an API token.
 
 ### 2. Enable ProPresenter Remote Control
 
-In ProPresenter 7:
+In ProPresenter:
 1. Go to **ProPresenter → Network**
 2. Enable **Remote Control**
 3. Set a password (optional but recommended)
@@ -60,6 +62,12 @@ Click **Save Settings**.
 | Max Reconnection Attempts | 3 | Number of times to retry if connection drops |
 | Reconnection Delay | 5 seconds | Wait time between reconnection attempts |
 | Debug Mode | Off | Verbose logging |
+
+### Settings Interface
+
+![Settings Page 1](img/settings1.png)
+
+![Settings Page 2](img/settings2.png)
 
 ## Using Notes Instead of Text
 
