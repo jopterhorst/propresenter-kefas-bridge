@@ -185,7 +185,3 @@ npm run build:linux    # Build for Linux
 - Listens for slide change events
 - Fetches slide content from `/v1/status/slide` endpoint
 - Event-driven architecture (no polling)
-
-## License
-
-MIT
