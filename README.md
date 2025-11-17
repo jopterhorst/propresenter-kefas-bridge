@@ -57,6 +57,8 @@ Click **Save Settings**.
 | Remote Control Password | — | Optional, set in ProPresenter Network settings |
 | Use Notes Instead | Off | Use slide notes when triggered |
 | Notes Trigger | "Current Slide Notes" | Trigger string |
+| Max Reconnection Attempts | 3 | Number of times to retry if connection drops |
+| Reconnection Delay | 5 seconds | Wait time between reconnection attempts |
 | Debug Mode | Off | Verbose logging |
 
 ## Using Notes Instead of Text
@@ -100,6 +102,20 @@ The app shows a real-time connection indicator:
 - **🟠 Orange** — Connecting or authenticating
 - **🔴 Red** — Connection error
 - **⚫ Gray** — Disconnected
+
+## Automatic Reconnection
+
+If the ProPresenter WebSocket connection drops, the app will automatically attempt to reconnect. The reconnection behavior can be configured in Settings:
+
+- **Max Reconnection Attempts** (1-10, default: 3) — Number of reconnection attempts before the bridge stops
+- **Reconnection Delay** (1-60 seconds, default: 5) — Wait time between each reconnection attempt
+
+For example, with default settings, if the connection drops:
+1. Attempt 1 fails → wait 5 seconds
+2. Attempt 2 fails → wait 5 seconds
+3. Attempt 3 fails → bridge stops automatically
+
+This ensures the app doesn't consume resources trying to connect to an unavailable ProPresenter instance.
 
 ## Troubleshooting
 

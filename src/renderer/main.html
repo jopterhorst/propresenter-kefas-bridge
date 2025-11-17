@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>ProPresenter → Kefas Bridge</title>
+    <title>ProPresenter Kefas Bridge</title>
     <style>
       * {
         margin: 0;
@@ -158,6 +158,10 @@
         color: #00d084;
         white-space: pre-wrap;
         word-break: break-word;
+      }
+
+      .log-error {
+        color: #ff3b30 !important;
       }
 
       #log::-webkit-scrollbar {
@@ -327,7 +331,7 @@
           <div class="connection-dot disconnected" id="connectionDot"></div>
           <div style="flex: 1;">
             <div class="connection-text" id="connectionText">Not connected</div>
-            <div class="connection-details" id="connectionDetails">Start bridge to connect</div>
+            <div class="connection-details" id="connectionDetails"></div>
           </div>
         </div>
         <div class="controls">
@@ -368,17 +372,27 @@
           hour12: false,
           hour: '2-digit',
           minute: '2-digit',
-          second: '2-digit'
+          second: '2-digit',
+          fractionalSecondDigits: 3
         });
-        logEl.textContent += `[${time}] ${msg}\n`;
+        const logLine = `[${time}] ${msg}`;
+        const isError = msg.toLowerCase().includes('error') || msg.toLowerCase().includes('failed');
+        
+        const line = document.createElement('div');
+        line.textContent = logLine;
+        if (isError) {
+          line.className = 'log-error';
+        }
+        logEl.appendChild(line);
         logEl.scrollTop = logEl.scrollHeight;
       }
 
       function downloadLog() {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
         const filename = `bridge-log-${timestamp}.txt`;
+        const logText = Array.from(logEl.children).map(line => line.textContent).join('\n');
         const element = document.createElement('a');
-        element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(logEl.textContent));
+        element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(logText));
         element.setAttribute('download', filename);
         element.style.display = 'none';
         document.body.appendChild(element);
@@ -419,7 +433,9 @@
         } else {
           connectionDot.className = 'connection-dot disconnected';
           connectionText.textContent = 'Not connected';
-          connectionDetails.textContent = 'Start bridge to connect';
+          const host = localStorage.getItem('proPresenterHost') || '127.0.0.1';
+          const port = localStorage.getItem('proPresenterPort') || '55056';
+          connectionDetails.textContent = `Will connect to ${host}:${port}`;
         }
       }
 
@@ -480,8 +496,10 @@
         const useNotes = localStorage.getItem('useNotes') === 'true';
         const notesTrigger = localStorage.getItem('notesTrigger') || 'Current Slide Notes';
         const debugMode = localStorage.getItem('debugMode') === 'true';
+        const maxReconnect = parseInt(localStorage.getItem('maxReconnectAttempts') || '3');
+        const reconnectDelay = parseInt(localStorage.getItem('reconnectDelayMs') || '5000');
         appendLog('Start requested.');
-        window.bridgeAPI.start(token, host, port, debugMode, 0, useNotes, notesTrigger, password);
+        window.bridgeAPI.start(token, host, port, debugMode, 0, useNotes, notesTrigger, password, maxReconnect, reconnectDelay);
       });
 
       stopBtn.addEventListener('click', () => {

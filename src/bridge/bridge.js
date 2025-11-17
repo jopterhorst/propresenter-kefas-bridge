@@ -31,6 +31,7 @@ const DEFAULT_NOTES_TRIGGER = 'Current Slide Notes';
 
 let lastSentLyric = null;
 let kefasToken = null;
+let proPresenterPassword = '';
 let debugMode = false;
 let isRunning = false;
 let onStatusCallback = null;
@@ -39,6 +40,10 @@ let useNotes = false;
 let notesTrigger = DEFAULT_NOTES_TRIGGER;
 let ws = null;
 let wsConnected = false;
+let wsFailureCount = 0;
+let wsReconnectTimeout = null;
+let MAX_RECONNECT_ATTEMPTS = 3;
+let RECONNECT_DELAY_MS = 5000; // 5 seconds between reconnect attempts
 
 function updateStatus(message) {
   if (debugMode) console.debug(`[DEBUG] Status: ${message}`);
@@ -122,6 +127,12 @@ function extractCurrentLyric(statusJson) {
     text = text.trim();
   } else {
     text = String(text).trim();
+  }
+
+  // If text is exactly the trigger string, treat as empty
+  if (useNotes && text === notesTrigger) {
+    writeDebugLog(`[EXTRACT] Text is exactly the notes trigger, treating as empty slide`);
+    return null;
   }
 
   // Check if text contains the configured trigger string and useNotes is enabled
@@ -244,8 +255,7 @@ function connectWebSocket(host, port, password = '') {
         if (ws) ws.close();
         ws = null;
         wsConnected = false;
-        updateConnectionStatus('error', 'Connection timeout - check ProPresenter settings');
-        updateStatus('WebSocket connection timeout. Is ProPresenter running with network enabled?');
+        handleWebSocketFailure('Connection timeout - check ProPresenter settings');
       }
     }, 5000);
     
@@ -282,7 +292,7 @@ function connectWebSocket(host, port, password = '') {
             writeDebugLog(`[WS] Successfully authenticated with ProPresenter`);
             if (debugMode) console.debug(`[DEBUG] WebSocket authenticated`);
             wsConnected = true;
-            updateConnectionStatus('connected', 'WebSocket active');
+            updateConnectionStatus('connected', `Connected to ${PRO_API_HOST}:${PRO_API_PORT}`);
             updateStatus('WebSocket connected and authenticated - listening for slide changes...');
           } else {
             const errorMsg = message.error || message.message || 'Unknown error';
@@ -324,8 +334,7 @@ function connectWebSocket(host, port, password = '') {
       if (ws) ws.close();
       ws = null;
       wsConnected = false;
-      updateConnectionStatus('error', `WebSocket error: ${err.message}`);
-      updateStatus(`WebSocket error: ${err.message}. Check ProPresenter network settings.`);
+      handleWebSocketFailure(err.message);
     });
     
     ws.on('close', () => {
@@ -334,18 +343,20 @@ function connectWebSocket(host, port, password = '') {
       if (debugMode) console.debug(`[DEBUG] WebSocket disconnected`);
       ws = null;
       wsConnected = false;
-      updateConnectionStatus('disconnected', 'Connection lost');
       
       if (isRunning) {
-        updateStatus('WebSocket disconnected. Bridge still running but not receiving events.');
+        // Connection closed unexpectedly while bridge is running
+        handleWebSocketFailure('Connection closed unexpectedly');
+      } else {
+        // Bridge was explicitly stopped
+        updateConnectionStatus('disconnected', 'Bridge stopped');
       }
     });
   } catch (err) {
     writeDebugLog(`[WS] Failed to create WebSocket: ${err.message}`);
     if (debugMode) console.error(`[DEBUG] WebSocket creation error:`, err);
     wsConnected = false;
-    updateConnectionStatus('error', `Connection failed: ${err.message}`);
-    updateStatus(`WebSocket connection failed: ${err.message}`);
+    handleWebSocketFailure(err.message);
   }
 }
 
@@ -359,15 +370,54 @@ function disconnectWebSocket() {
   }
 }
 
+function clearReconnectTimeout() {
+  if (wsReconnectTimeout) {
+    clearTimeout(wsReconnectTimeout);
+    wsReconnectTimeout = null;
+  }
+}
+
+function handleWebSocketFailure(errorMsg) {
+  wsFailureCount++;
+  const failureMsg = `WebSocket connection failed (${wsFailureCount}/${MAX_RECONNECT_ATTEMPTS}): ${errorMsg}`;
+  writeDebugLog(`[WS] ${failureMsg}`);
+  if (debugMode) console.debug(`[DEBUG] ${failureMsg}`);
+  
+  if (wsFailureCount >= MAX_RECONNECT_ATTEMPTS) {
+    writeDebugLog(`[WS] Max reconnection attempts reached. Stopping bridge.`);
+    if (debugMode) console.debug(`[DEBUG] Max reconnection attempts reached`);
+    updateStatus(`Connection failed after ${MAX_RECONNECT_ATTEMPTS} attempts. Bridge stopped.`);
+    updateConnectionStatus('error', `Connection failed after ${MAX_RECONNECT_ATTEMPTS} attempts`);
+    
+    // Automatically stop the bridge
+    stopBridge(() => {});
+  } else if (!wsReconnectTimeout) {
+    // Only schedule a reconnect if one isn't already scheduled
+    updateStatus(`Connection failed. Retrying in ${RECONNECT_DELAY_MS / 1000}s (attempt ${wsFailureCount}/${MAX_RECONNECT_ATTEMPTS})...`);
+    updateConnectionStatus('error', `Connection failed, will retry (${wsFailureCount}/${MAX_RECONNECT_ATTEMPTS})`);
+    
+    // Schedule reconnection attempt
+    wsReconnectTimeout = setTimeout(() => {
+      wsReconnectTimeout = null; // Clear the timeout reference
+      if (isRunning) {
+        writeDebugLog(`[WS] Attempting reconnection (attempt ${wsFailureCount + 1}/${MAX_RECONNECT_ATTEMPTS})`);
+        connectWebSocket(PRO_API_HOST, PRO_API_PORT, proPresenterPassword);
+      }
+    }, RECONNECT_DELAY_MS);
+  }
+}
 
 
-function startBridge(token, host, port, debugModeEnabled, onStatus, intervalMs = 0, useNotesParam = false, notesTriggerParam = DEFAULT_NOTES_TRIGGER, onConnectionStatus = null, password = '') {
+
+function startBridge(token, host, port, debugModeEnabled, onStatus, intervalMs = 0, useNotesParam = false, notesTriggerParam = DEFAULT_NOTES_TRIGGER, onConnectionStatus = null, password = '', maxReconnectParam = 3, reconnectDelayParam = 5000) {
   writeDebugLog(`===== BRIDGE START =====`);
   writeDebugLog(`Token: ${token.substring(0, 5)}...`);
   writeDebugLog(`Host: ${host}`);
   writeDebugLog(`Port: ${port}`);
   writeDebugLog(`Debug mode: ${debugModeEnabled}`);
   writeDebugLog(`Use Notes: ${useNotesParam}, Trigger: "${notesTriggerParam}"`);
+  writeDebugLog(`Max Reconnect Attempts: ${maxReconnectParam}`);
+  writeDebugLog(`Reconnect Delay: ${reconnectDelayParam}ms`);
   
   if (isRunning) {
     onStatus?.('Bridge is already running.');
@@ -390,6 +440,13 @@ function startBridge(token, host, port, debugModeEnabled, onStatus, intervalMs =
   onStatusCallback = onStatus;
   onConnectionStatusCallback = onConnectionStatus;
   lastSentLyric = null;
+  proPresenterPassword = password || '';
+  wsFailureCount = 0; // Reset failure counter on start
+  clearReconnectTimeout(); // Clear any pending reconnect attempts
+  
+  // Set reconnection parameters from settings
+  MAX_RECONNECT_ATTEMPTS = maxReconnectParam || 3;
+  RECONNECT_DELAY_MS = reconnectDelayParam || 5000;
   
   if (debugMode) console.debug(`[DEBUG] Debug mode enabled`);
   console.log(`Bridge starting with WebSocket trigger to ProPresenter API on port ${PRO_API_PORT}`);
@@ -412,6 +469,9 @@ function stopBridge(onStatus) {
   lastSentLyric = null;
   onStatusCallback = null;
   onConnectionStatusCallback = null;
+  wsFailureCount = 0;
+  proPresenterPassword = '';
+  clearReconnectTimeout();
   
   // Disconnect WebSocket
   disconnectWebSocket();
