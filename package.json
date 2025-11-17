@@ -1,7 +1,7 @@
 {
   "name": "propresenter-kefas-electron",
   "version": "2025.11.1",
-  "description": "Bridge ProPresenter 7 lyrics to Kefas API",
+  "description": "Bridge ProPresenter lyrics to Kefas API",
   "author": "Jop ter Horst",
   "main": "src/main/main.js",
   "type": "commonjs",
