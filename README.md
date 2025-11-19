@@ -31,6 +31,18 @@ Download the latest release for your platform:
 - **Windows**: Download `.exe` installer or portable version
 - **Linux**: Download `.AppImage` or `.deb`
 
+### macOS Security Note
+
+Since the app is unsigned, macOS Gatekeeper will prevent it from running the first time. After installing the app, you need to remove the quarantine flag:
+
+1. Open Terminal
+2. Run the following command:
+   ```bash
+   xattr -d com.apple.quarantine /Applications/ProPresenter\ Kefas\ Bridge.app
+   ```
+3. You can now launch the app normally
+
+
 ## Quick Start
 
 ### 1. Get Your Kefas API Token

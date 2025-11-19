@@ -9,7 +9,7 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
-    "build:mac": "electron-builder --mac",
+    "build:mac": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac",
     "build:win": "electron-builder --win",
     "build:linux": "electron-builder --linux"
   },
