@@ -8,11 +8,31 @@ This app connects to ProPresenter via HTTP streaming and automatically sends the
 
 ![Main App Interface](img/main.png)
 
+## Features
+
+✨ **Real-time streaming** — No polling, instant synchronization  
+🔄 **Auto-reconnection** — Automatically reconnects if connection drops  
+🌐 **Cross-platform** — Works on macOS, Windows, and Linux  
+🔒 **Secure** — Content Security Policy and proper sandboxing  
+📝 **Bilingual support** — Use slide notes for translation workflows  
+🎨 **Native UI** — Clean, native-looking interface with dark mode support  
+🔔 **Auto-updates** — Automatic updates from GitHub releases  
+
 ## Requirements
 
 - **ProPresenter 7+** with API enabled
 - **Kefas account** with API token
 - **macOS, Windows, or Linux**
+
+## Installation
+
+Download the latest release for your platform:
+
+- **macOS**: Download `.dmg` or `.zip`
+- **Windows**: Download `.exe` installer or portable version
+- **Linux**: Download `.AppImage` or `.deb`
+
+The app will automatically check for updates and notify you when a new version is available.
 
 ## Quick Start
 
@@ -180,3 +200,25 @@ npm run build:linux    # Build for Linux
 - Receives JSON chunks delimited by `\r\n\r\n`
 - Server-push architecture (no polling, no WebSocket)
 - Event-driven updates when slides change
+- Built with Electron for cross-platform compatibility
+- Secure: Context isolation, CSP, proper IPC cleanup
+
+## Auto-Updates
+
+The app includes automatic update functionality:
+- Checks for updates on startup and every 4 hours
+- Notifies you when a new version is available
+- Downloads and installs updates seamlessly
+- Manual check via **Help → Check for Updates**
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+MIT License - See LICENSE file for details
+
+## Version
+
+Current version: **2025.11.3**

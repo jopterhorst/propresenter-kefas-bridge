@@ -1,6 +1,7 @@
 {
-  "name": "propresenter-kefas-electron",
-  "version": "2025.11.2",
+  "name": "propresenter-kefas-bridge",
+  "productName": "ProPresenter Kefas Bridge",
+  "version": "2025.11.3",
   "description": "Bridge ProPresenter lyrics to Kefas API",
   "author": "Jop ter Horst",
   "main": "src/main/main.js",
@@ -17,18 +18,29 @@
     "electron-builder": "^24.0.0"
   },
   "dependencies": {
+    "electron-updater": "^6.3.0",
     "node-fetch": "^3.0.0"
   },
   "build": {
     "appId": "com.jopterhorst.propresenter-kefas-bridge.app",
     "productName": "ProPresenter Kefas Bridge",
     "icon": "src/assets/icon.png",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "jopterhorst",
+        "repo": "propresenter-kefas-bridge"
+      }
+    ],
     "files": [
       "src/main/main.js",
+      "src/main/updater.js",
       "src/bridge/bridge.js",
       "src/renderer/preload.js",
       "src/renderer/main.html",
       "src/renderer/settings.html",
+      "src/renderer/styles/**",
+      "src/renderer/scripts/**",
       "src/assets/icon.png",
       "package.json"
     ],
