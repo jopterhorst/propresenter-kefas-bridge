@@ -16,6 +16,7 @@ function createMainWindow() {
       preload: path.join(__dirname, '../renderer/preload.js'),
       sandbox: false,
       contextIsolation: true,
+      partition: 'persist:main',
     },
   });
 
@@ -41,6 +42,7 @@ function createSettingsWindow() {
       preload: path.join(__dirname, '../renderer/preload.js'),
       sandbox: false,
       contextIsolation: true,
+      partition: 'persist:main',
     },
   });
 

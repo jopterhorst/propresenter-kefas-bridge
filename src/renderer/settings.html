@@ -296,19 +296,6 @@
           />
           <p class="info-text">Default port is 55056. Change if ProPresenter is running on a different port.</p>
         </div>
-
-        <div class="form-group" style="margin-top: 12px; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 12px;">
-          <label for="passwordInput">Remote Password</label>
-          <div class="password-input-wrapper">
-            <input 
-              type="password" 
-              id="passwordInput" 
-              placeholder="Leave empty if no password set"
-            />
-            <button type="button" class="password-toggle-btn" id="passwordToggle">Show</button>
-          </div>
-          <p class="info-text">Password set in ProPresenter → Network → Remote Control. Use either controller or observer.</p>
-        </div>
       </div>
 
       <!-- Notes Feature Card -->
@@ -335,10 +322,10 @@
         </div>
       </div>
 
-      <!-- WebSocket Reconnection Card -->
+      <!-- Stream Reconnection Card -->
       <div class="card">
         <h3>
-          WebSocket Reconnection
+          Stream Reconnection
         </h3>
         <div class="form-group">
           <label for="maxReconnectInput">Max Reconnection Attempts</label>
@@ -386,8 +373,6 @@
     <script>
       const tokenInput = document.getElementById('tokenInput');
       const portInput = document.getElementById('portInput');
-      const passwordInput = document.getElementById('passwordInput');
-      const pollIntervalInput = document.getElementById('pollIntervalInput');
       const useNotesToggle = document.getElementById('useNotesToggle');
       const notesTriggerInput = document.getElementById('notesTriggerInput');
       const maxReconnectInput = document.getElementById('maxReconnectInput');
@@ -408,9 +393,6 @@
         
         const savedPort = localStorage.getItem('proPresenterPort');
         portInput.value = savedPort || '55056';
-        
-        const savedPassword = localStorage.getItem('proPresenterPassword');
-        passwordInput.value = savedPassword || '';
         
         const useNotes = localStorage.getItem('useNotes') === 'true';
         useNotesToggle.checked = useNotes;
@@ -469,7 +451,6 @@
         localStorage.setItem('kefasToken', token);
         localStorage.setItem('proPresenterHost', host);
         localStorage.setItem('proPresenterPort', port);
-        localStorage.setItem('proPresenterPassword', passwordInput.value.trim());
         localStorage.setItem('useNotes', useNotesToggle.checked ? 'true' : 'false');
         localStorage.setItem('notesTrigger', notesTrigger);
         localStorage.setItem('maxReconnectAttempts', maxReconnect);
@@ -497,10 +478,9 @@
         });
       }
 
-      // Toggle password visibility
+      // Toggle token visibility
       function setupPasswordToggles() {
         const tokenToggle = document.getElementById('tokenToggle');
-        const passwordToggle = document.getElementById('passwordToggle');
 
         tokenToggle.addEventListener('click', (e) => {
           e.preventDefault();
@@ -508,14 +488,6 @@
           const isPassword = input.type === 'password';
           input.type = isPassword ? 'text' : 'password';
           tokenToggle.textContent = isPassword ? 'Hide' : 'Show';
-        });
-
-        passwordToggle.addEventListener('click', (e) => {
-          e.preventDefault();
-          const input = document.getElementById('passwordInput');
-          const isPassword = input.type === 'password';
-          input.type = isPassword ? 'text' : 'password';
-          passwordToggle.textContent = isPassword ? 'Hide' : 'Show';
         });
       }
 

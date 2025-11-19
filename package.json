@@ -1,6 +1,6 @@
 {
   "name": "propresenter-kefas-electron",
-  "version": "2025.11.1",
+  "version": "2025.11.2",
   "description": "Bridge ProPresenter lyrics to Kefas API",
   "author": "Jop ter Horst",
   "main": "src/main/main.js",
@@ -17,8 +17,7 @@
     "electron-builder": "^24.0.0"
   },
   "dependencies": {
-    "node-fetch": "^3.0.0",
-    "ws": "^8.18.3"
+    "node-fetch": "^3.0.0"
   },
   "build": {
     "appId": "com.jopterhorst.propresenter-kefas-bridge.app",

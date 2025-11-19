@@ -1,7 +1,6 @@
 // bridge.js
 const fs = require('fs');
 const path = require('path');
-const WebSocket = require('ws');
 
 const DEBUG_LOG_FILE = path.join(process.env.HOME || '/tmp', 'propresenter-kefas-bridge.log');
 
@@ -31,17 +30,15 @@ const DEFAULT_NOTES_TRIGGER = 'Current Slide Notes';
 
 let lastSentLyric = null;
 let kefasToken = null;
-let proPresenterPassword = '';
 let debugMode = false;
 let isRunning = false;
 let onStatusCallback = null;
 let onConnectionStatusCallback = null;
 let useNotes = false;
 let notesTrigger = DEFAULT_NOTES_TRIGGER;
-let ws = null;
-let wsConnected = false;
-let wsFailureCount = 0;
-let wsReconnectTimeout = null;
+let streamAbortController = null;
+let streamFailureCount = 0;
+let streamReconnectTimeout = null;
 let MAX_RECONNECT_ATTEMPTS = 3;
 let RECONNECT_DELAY_MS = 5000; // 5 seconds between reconnect attempts
 
@@ -52,7 +49,7 @@ function updateStatus(message) {
 
 function updateConnectionStatus(status, details = '') {
   if (debugMode) console.debug(`[DEBUG] Connection Status: ${status} - ${details}`);
-  onConnectionStatusCallback?.({ status, details, wsConnected });
+  onConnectionStatusCallback?.({ status, details });
   writeDebugLog(`[CONNECTION] Status: ${status} - ${details}`);
 }
 
@@ -174,45 +171,29 @@ function extractCurrentLyric(statusJson) {
   return text || null;
 }
 
-async function getProPresenterSlideStatus() {
-  const url = `http://${PRO_API_HOST}:${PRO_API_PORT}/v1/status/slide`;
-  
-  if (debugMode) console.debug(`[DEBUG] Fetching from: ${url}`);
-  writeDebugLog(`[API] Fetching ProPresenter slide status from ${url}`);
-  
+async function processSlideUpdate(slideData) {
   try {
-    const res = await fetch(url);
+    writeDebugLog(`[STREAM] Received slide update`);
     
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      writeDebugLog(`[API] Error: ${res.status} - ${text || res.statusText}`);
-      throw new Error(`ProPresenter API error ${res.status}: ${text || res.statusText}`);
-    }
-
-    const json = await res.json();
-    if (debugMode) console.debug(`[DEBUG] ProPresenter API response:`, json);
-    writeDebugLog(`[API] Got response from ProPresenter API`);
-    return json;
-  } catch (err) {
-    writeDebugLog(`[API] Fetch error: ${err.message}`);
-    throw err;
-  }
-}
-
-async function tick() {
-  try {
-    const status = await getProPresenterSlideStatus();
-    const lyric = extractCurrentLyric(status);
+    const lyric = extractCurrentLyric(slideData);
 
     if (!lyric) {
-      if (debugMode) console.debug(`[DEBUG] No lyric found on current slide`);
+      if (debugMode) console.debug(`[DEBUG] No lyric on slide`);
       updateStatus('No lyric found on current slide.');
       return;
     }
 
+    // On first connection, just record the current slide without sending
+    if (lastSentLyric === null) {
+      lastSentLyric = lyric;
+      writeDebugLog(`[STREAM] Initial slide recorded, not sending (waiting for slide change)`);
+      updateStatus('Connected - waiting for slide change...');
+      return;
+    }
+
     if (lyric === lastSentLyric) {
-      if (debugMode) console.debug(`[DEBUG] Lyric unchanged, skipping send`);
-      writeDebugLog(`[CHECK] Lyric unchanged, not sending`);
+      if (debugMode) console.debug(`[DEBUG] Lyric unchanged`);
+      writeDebugLog(`[STREAM] Lyric unchanged, not sending`);
       return;
     }
 
@@ -222,186 +203,131 @@ async function tick() {
       console.debug(`[DEBUG] New lyric: ${lyric.substring(0, 100)}...`);
     }
 
-    writeDebugLog(`[CHECK] New lyric detected - length: ${lyric.length} chars`);
-    writeDebugLog(`[CHECK] Content: "${lyric.substring(0, 200)}${lyric.length > 200 ? '...' : ''}"`);
-    updateStatus(`Sending: ${JSON.stringify(lyric.substring(0, 50))}${lyric.length > 50 ? '...' : ''}`);
+    writeDebugLog(`[STREAM] New lyric detected - length: ${lyric.length} chars`);
+    writeDebugLog(`[STREAM] Content: "${lyric.substring(0, 200)}${lyric.length > 200 ? '...' : ''}"`);
+    updateStatus(`Sending: ${lyric.substring(0, 50)}${lyric.length > 50 ? '...' : ''}`);
     await sendToKefas(lyric);
     lastSentLyric = lyric;
-    writeDebugLog(`[CHECK] Successfully sent to Kefas`);
+    writeDebugLog(`[STREAM] Successfully sent to Kefas`);
     updateStatus('Sent to Kefas successfully.');
   } catch (err) {
     updateStatus(`Error: ${err.message}`);
-    writeDebugLog(`[CHECK] Error: ${err.message}`);
-    if (debugMode) console.error(`[DEBUG] Error in tick:`, err);
+    writeDebugLog(`[STREAM] Error processing slide: ${err.message}`);
+    if (debugMode) console.error('[DEBUG] Processing error:', err);
   }
 }
 
-
-
-function connectWebSocket(host, port, password = '') {
-  // ProPresenter 7 uses /remote endpoint with required authentication
-  const wsUrl = `ws://${host}:${port}/remote`;
+async function connectChunkedStream(host, port) {
+  const url = `http://${host}:${port}/v1/status/slide?chunked=true`;
   
-  writeDebugLog(`[WS] Attempting WebSocket connection to ${wsUrl}`);
-  if (debugMode) console.debug(`[DEBUG] Connecting to WebSocket: ${wsUrl}`);
+  writeDebugLog(`[STREAM] Connecting to chunked stream: ${url}`);
+  if (debugMode) console.debug(`[DEBUG] Connecting to chunked stream: ${url}`);
+  updateConnectionStatus('connecting', 'Connecting to ProPresenter API...');
   
   try {
-    ws = new WebSocket(wsUrl);
+    streamAbortController = new AbortController();
     
-    // Set timeout for connection
-    const timeout = setTimeout(() => {
-      if (ws && ws.readyState === WebSocket.CONNECTING) {
-        writeDebugLog(`[WS] WebSocket connection timeout`);
-        if (ws) ws.close();
-        ws = null;
-        wsConnected = false;
-        handleWebSocketFailure('Connection timeout - check ProPresenter settings');
-      }
-    }, 5000);
+    const response = await fetch(url, {
+      signal: streamAbortController.signal
+    });
     
-    ws.on('open', () => {
-      clearTimeout(timeout);
-      writeDebugLog(`[WS] WebSocket connected successfully to ${wsUrl}`);
-      if (debugMode) console.debug(`[DEBUG] WebSocket connected`);
-      updateConnectionStatus('connecting', 'Authenticating with ProPresenter...');
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    updateConnectionStatus('connected', `Streaming from ${host}:${port}`);
+    updateStatus('Connected - listening for slide changes...');
+    writeDebugLog(`[STREAM] Connected successfully, reading stream...`);
+    
+    // Read the stream
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+    
+    while (isRunning) {
+      const { done, value } = await reader.read();
       
-      // Authenticate immediately after connection
-      const authMessage = {
-        action: 'authenticate',
-        protocol: 701,  // ProPresenter 7.4.2+ uses protocol 701
-        password: password
-      };
-      ws.send(JSON.stringify(authMessage));
-      writeDebugLog(`[WS] Sent authentication message (protocol 701) with password: ${password}`);
-    });
-    
-    ws.on('message', (data) => {
-      try {
-        const message = JSON.parse(data);
-        
-        writeDebugLog(`[WS] Received message: ${JSON.stringify(message)}`);
-        if (debugMode) {
-          console.debug(`[DEBUG] Full WebSocket message:`, message);
-        }
-        
-        // Handle authentication response
-        if (message.action === 'authenticate') {
-          writeDebugLog(`[WS] Auth response - authenticated: ${message.authenticated}, error: ${message.error || 'none'}`);
-          
-          if (message.authenticated === true || message.authenticated === 1) {
-            writeDebugLog(`[WS] Successfully authenticated with ProPresenter`);
-            if (debugMode) console.debug(`[DEBUG] WebSocket authenticated`);
-            wsConnected = true;
-            updateConnectionStatus('connected', `Connected to ${PRO_API_HOST}:${PRO_API_PORT}`);
-            updateStatus('WebSocket connected and authenticated - listening for slide changes...');
-          } else {
-            const errorMsg = message.error || message.message || 'Unknown error';
-            writeDebugLog(`[WS] Authentication failed: ${errorMsg}`);
-            if (debugMode) console.debug(`[DEBUG] Auth failed:`, message);
-            wsConnected = false;
-            updateConnectionStatus('error', `Auth failed: ${errorMsg}`);
-            updateStatus(`WebSocket authentication failed: ${errorMsg}`);
-          }
-          return;
-        }
-        
-        // Listen for all presentation trigger events (these indicate slide changes)
-        // Based on ProPresenter 7 API documentation
-        if (message.action === 'presentationTriggerIndex' ||      // Slide triggered by index
-            message.action === 'presentationTriggerNext' ||        // Next slide triggered
-            message.action === 'presentationTriggerPrevious' ||    // Previous slide triggered
-            message.action === 'presentationSlideIndex' ||         // Current slide index update
-            message.action === 'presentationCurrent') {            // Current presentation changed
-          
-          writeDebugLog(`[WS] Slide change detected via ${message.action}`);
-          if (debugMode) {
-            console.debug(`[DEBUG] WebSocket slide change event:`, message);
-          }
-          
-          // Trigger immediate API call to get the new slide content
-          tick();
-        }
-      } catch (err) {
-        writeDebugLog(`[WS] Message parse error: ${err.message}`);
-        if (debugMode) console.debug(`[DEBUG] WebSocket message parse error:`, err);
+      if (done) {
+        writeDebugLog(`[STREAM] Stream ended`);
+        break;
       }
-    });
-    
-    ws.on('error', (err) => {
-      clearTimeout(timeout);
-      writeDebugLog(`[WS] WebSocket error: ${err.message}`);
-      if (debugMode) console.error(`[DEBUG] WebSocket error:`, err);
-      if (ws) ws.close();
-      ws = null;
-      wsConnected = false;
-      handleWebSocketFailure(err.message);
-    });
-    
-    ws.on('close', () => {
-      clearTimeout(timeout);
-      writeDebugLog(`[WS] WebSocket disconnected`);
-      if (debugMode) console.debug(`[DEBUG] WebSocket disconnected`);
-      ws = null;
-      wsConnected = false;
       
-      if (isRunning) {
-        // Connection closed unexpectedly while bridge is running
-        handleWebSocketFailure('Connection closed unexpectedly');
-      } else {
-        // Bridge was explicitly stopped
-        updateConnectionStatus('disconnected', 'Bridge stopped');
+      buffer += decoder.decode(value, { stream: true });
+      
+      // Process complete chunks (delimited by \r\n\r\n)
+      let endOfChunkPosition;
+      while ((endOfChunkPosition = buffer.indexOf('\r\n\r\n')) !== -1) {
+        const chunk = buffer.slice(0, endOfChunkPosition);
+        buffer = buffer.slice(endOfChunkPosition + 4); // Remove processed chunk
+        
+        // Parse chunk as JSON
+        try {
+          const slideData = JSON.parse(chunk);
+          await processSlideUpdate(slideData);
+        } catch (e) {
+          writeDebugLog(`[STREAM] Failed to parse chunk: ${e.message}`);
+          if (debugMode) console.error('[DEBUG] Parse error:', e);
+        }
       }
-    });
+    }
+    
+    // Stream ended or was stopped
+    if (isRunning) {
+      // Stream ended unexpectedly
+      handleStreamFailure('Stream ended unexpectedly');
+    }
   } catch (err) {
-    writeDebugLog(`[WS] Failed to create WebSocket: ${err.message}`);
-    if (debugMode) console.error(`[DEBUG] WebSocket creation error:`, err);
-    wsConnected = false;
-    handleWebSocketFailure(err.message);
+    if (err.name === 'AbortError') {
+      writeDebugLog(`[STREAM] Stream connection aborted`);
+      updateConnectionStatus('disconnected', 'Connection closed');
+    } else {
+      writeDebugLog(`[STREAM] Connection error: ${err.message}`);
+      if (debugMode) console.error(`[DEBUG] Stream error:`, err);
+      handleStreamFailure(err.message);
+    }
   }
 }
 
-function disconnectWebSocket() {
-  if (ws) {
-    writeDebugLog(`[WS] Closing WebSocket connection`);
-    ws.close();
-    ws = null;
-    wsConnected = false;
-    updateConnectionStatus('disconnected', 'Bridge stopped');
+function disconnectStream() {
+  if (streamReconnectTimeout) {
+    clearTimeout(streamReconnectTimeout);
+    streamReconnectTimeout = null;
   }
+  
+  if (streamAbortController) {
+    writeDebugLog(`[STREAM] Aborting stream connection`);
+    streamAbortController.abort();
+    streamAbortController = null;
+  }
+  
+  updateConnectionStatus('disconnected', 'Bridge stopped');
 }
 
-function clearReconnectTimeout() {
-  if (wsReconnectTimeout) {
-    clearTimeout(wsReconnectTimeout);
-    wsReconnectTimeout = null;
-  }
-}
-
-function handleWebSocketFailure(errorMsg) {
-  wsFailureCount++;
-  const failureMsg = `WebSocket connection failed (${wsFailureCount}/${MAX_RECONNECT_ATTEMPTS}): ${errorMsg}`;
-  writeDebugLog(`[WS] ${failureMsg}`);
+function handleStreamFailure(errorMsg) {
+  streamFailureCount++;
+  const failureMsg = `Stream connection failed (${streamFailureCount}/${MAX_RECONNECT_ATTEMPTS}): ${errorMsg}`;
+  writeDebugLog(`[STREAM] ${failureMsg}`);
   if (debugMode) console.debug(`[DEBUG] ${failureMsg}`);
   
-  if (wsFailureCount >= MAX_RECONNECT_ATTEMPTS) {
-    writeDebugLog(`[WS] Max reconnection attempts reached. Stopping bridge.`);
+  if (streamFailureCount >= MAX_RECONNECT_ATTEMPTS) {
+    writeDebugLog(`[STREAM] Max reconnection attempts reached. Stopping bridge.`);
     if (debugMode) console.debug(`[DEBUG] Max reconnection attempts reached`);
     updateStatus(`Connection failed after ${MAX_RECONNECT_ATTEMPTS} attempts. Bridge stopped.`);
     updateConnectionStatus('error', `Connection failed after ${MAX_RECONNECT_ATTEMPTS} attempts`);
     
     // Automatically stop the bridge
     stopBridge(() => {});
-  } else if (!wsReconnectTimeout) {
+  } else if (!streamReconnectTimeout) {
     // Only schedule a reconnect if one isn't already scheduled
-    updateStatus(`Connection failed. Retrying in ${RECONNECT_DELAY_MS / 1000}s (attempt ${wsFailureCount}/${MAX_RECONNECT_ATTEMPTS})...`);
-    updateConnectionStatus('error', `Connection failed, will retry (${wsFailureCount}/${MAX_RECONNECT_ATTEMPTS})`);
+    updateStatus(`Connection failed. Retrying in ${RECONNECT_DELAY_MS / 1000}s (attempt ${streamFailureCount}/${MAX_RECONNECT_ATTEMPTS})...`);
+    updateConnectionStatus('error', `Connection failed, will retry (${streamFailureCount}/${MAX_RECONNECT_ATTEMPTS})`);
     
     // Schedule reconnection attempt
-    wsReconnectTimeout = setTimeout(() => {
-      wsReconnectTimeout = null; // Clear the timeout reference
+    streamReconnectTimeout = setTimeout(() => {
+      streamReconnectTimeout = null;
       if (isRunning) {
-        writeDebugLog(`[WS] Attempting reconnection (attempt ${wsFailureCount + 1}/${MAX_RECONNECT_ATTEMPTS})`);
-        connectWebSocket(PRO_API_HOST, PRO_API_PORT, proPresenterPassword);
+        writeDebugLog(`[STREAM] Attempting reconnection (attempt ${streamFailureCount + 1}/${MAX_RECONNECT_ATTEMPTS})`);
+        connectChunkedStream(PRO_API_HOST, PRO_API_PORT);
       }
     }, RECONNECT_DELAY_MS);
   }
@@ -440,23 +366,21 @@ function startBridge(token, host, port, debugModeEnabled, onStatus, intervalMs =
   onStatusCallback = onStatus;
   onConnectionStatusCallback = onConnectionStatus;
   lastSentLyric = null;
-  proPresenterPassword = password || '';
-  wsFailureCount = 0; // Reset failure counter on start
-  clearReconnectTimeout(); // Clear any pending reconnect attempts
+  streamFailureCount = 0; // Reset failure counter on start
   
   // Set reconnection parameters from settings
   MAX_RECONNECT_ATTEMPTS = maxReconnectParam || 3;
   RECONNECT_DELAY_MS = reconnectDelayParam || 5000;
   
   if (debugMode) console.debug(`[DEBUG] Debug mode enabled`);
-  console.log(`Bridge starting with WebSocket trigger to ProPresenter API on port ${PRO_API_PORT}`);
-  writeDebugLog(`Bridge starting - WebSocket will trigger API calls on slide changes`);
+  console.log(`Bridge starting with chunked streaming to ProPresenter API on port ${PRO_API_PORT}`);
+  writeDebugLog(`Bridge starting - using chunked stream for real-time slide updates`);
   
-  onStatus?.(`Starting bridge - connecting to ProPresenter WebSocket...`);
+  onStatus?.(`Starting bridge - connecting to ProPresenter API...`);
   updateConnectionStatus('connecting', 'Connecting to ProPresenter...');
   
-  // Connect WebSocket - wait for slide change events to trigger API calls
-  connectWebSocket(PRO_API_HOST, PRO_API_PORT, password);
+  // Connect to chunked stream - will receive real-time slide updates
+  connectChunkedStream(PRO_API_HOST, PRO_API_PORT);
 }
 
 function stopBridge(onStatus) {
@@ -469,12 +393,10 @@ function stopBridge(onStatus) {
   lastSentLyric = null;
   onStatusCallback = null;
   onConnectionStatusCallback = null;
-  wsFailureCount = 0;
-  proPresenterPassword = '';
-  clearReconnectTimeout();
+  streamFailureCount = 0;
   
-  // Disconnect WebSocket
-  disconnectWebSocket();
+  // Disconnect stream
+  disconnectStream();
 
   writeDebugLog(`===== BRIDGE STOPPED =====`);
   onStatus?.('Bridge stopped.');

@@ -406,13 +406,13 @@
           const statusMap = {
             'connected': {
               dotClass: 'connected',
-              text: 'WebSocket Connected',
+              text: 'Stream Connected',
               details: connectionStatus.details || 'Real-time slide changes'
             },
             'connecting': {
               dotClass: 'connecting',
               text: 'Connecting...',
-              details: connectionStatus.details || 'Establishing WebSocket connection'
+              details: connectionStatus.details || 'Establishing stream connection'
             },
             'error': {
               dotClass: 'error',
@@ -492,14 +492,13 @@
         
         const host = localStorage.getItem('proPresenterHost') || '127.0.0.1';
         const port = parseInt(localStorage.getItem('proPresenterPort') || '55056');
-        const password = localStorage.getItem('proPresenterPassword') || '';
         const useNotes = localStorage.getItem('useNotes') === 'true';
         const notesTrigger = localStorage.getItem('notesTrigger') || 'Current Slide Notes';
         const debugMode = localStorage.getItem('debugMode') === 'true';
         const maxReconnect = parseInt(localStorage.getItem('maxReconnectAttempts') || '3');
         const reconnectDelay = parseInt(localStorage.getItem('reconnectDelayMs') || '5000');
         appendLog('Start requested.');
-        window.bridgeAPI.start(token, host, port, debugMode, 0, useNotes, notesTrigger, password, maxReconnect, reconnectDelay);
+        window.bridgeAPI.start(token, host, port, debugMode, 0, useNotes, notesTrigger, '', maxReconnect, reconnectDelay);
       });
 
       stopBtn.addEventListener('click', () => {

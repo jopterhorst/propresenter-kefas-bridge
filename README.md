@@ -1,16 +1,16 @@
 # ProPresenter Kefas Bridge
 
-Automatically send lyrics from ProPresenter slides to Kefas in real-time using WebSocket triggers.
+Automatically send lyrics from ProPresenter slides to Kefas in real-time using the chunked streaming API.
 
 ## What It Does
 
-This app connects to ProPresenter via WebSocket and automatically sends the current slide lyrics to Kefas whenever you change slides. No polling, no delays—instant synchronization.
+This app connects to ProPresenter via HTTP streaming and automatically sends the current slide lyrics to Kefas whenever you change slides. No polling, no delays—instant synchronization using ProPresenter 7's chunked API.
 
 ![Main App Interface](img/main.png)
 
 ## Requirements
 
-- **ProPresenter** with Remote Control enabled
+- **ProPresenter 7+** with API enabled
 - **Kefas account** with API token
 - **macOS, Windows, or Linux**
 
@@ -20,13 +20,12 @@ This app connects to ProPresenter via WebSocket and automatically sends the curr
 
 Log into your Kefas account and create an API token.
 
-### 2. Enable ProPresenter Remote Control
+### 2. Enable ProPresenter API
 
 In ProPresenter:
 1. Go to **ProPresenter → Network**
-2. Enable **Remote Control**
-3. Set a password (optional but recommended)
-4. Note the port (default: 55056)
+2. Enable **Network** (the API is automatically available)
+3. Note the port (default: 55056 for ProPresenter 7+, 50001 for older versions)
 
 ### 3. Install & Launch
 
@@ -37,8 +36,7 @@ Download the app for your platform and run it.
 Enter in the app Settings:
 - **Kefas API Token** — Your token from step 1
 - **ProPresenter Host** — IP address or hostname (default: 127.0.0.1)
-- **ProPresenter Port** — Usually `55056`
-- **Remote Control Password** — Password set in ProPresenter (if any)
+- **ProPresenter Port** — Usually `55056` for ProPresenter 7+, or `50001` for some setups
 
 Click **Save Settings**.
 
@@ -55,8 +53,7 @@ Click **Save Settings**.
 |---------|---------|-------|
 | Kefas Token | — | Required |
 | ProPresenter Host | 127.0.0.1 | IP or hostname of ProPresenter machine |
-| ProPresenter Port | 55056 | Network API port |
-| Remote Control Password | — | Optional, set in ProPresenter Network settings |
+| ProPresenter Port | 55056 | Network API port (55056 for ProPresenter 7+) |
 | Use Notes Instead | Off | Use slide notes when triggered |
 | Notes Trigger | "Current Slide Notes" | Trigger string |
 | Max Reconnection Attempts | 3 | Number of times to retry if connection drops |
@@ -106,14 +103,14 @@ When the app detects the trigger string in the slide text, it automatically uses
 ## Connection Status
 
 The app shows a real-time connection indicator:
-- **🟢 Green** — Connected to ProPresenter WebSocket
-- **🟠 Orange** — Connecting or authenticating
+- **🟢 Green** — Connected to ProPresenter API stream
+- **🟠 Orange** — Connecting to stream
 - **🔴 Red** — Connection error
 - **⚫ Gray** — Disconnected
 
 ## Automatic Reconnection
 
-If the ProPresenter WebSocket connection drops, the app will automatically attempt to reconnect. The reconnection behavior can be configured in Settings:
+If the ProPresenter connection drops, the app will automatically attempt to reconnect. The reconnection behavior can be configured in Settings:
 
 - **Max Reconnection Attempts** (1-10, default: 3) — Number of reconnection attempts before the bridge stops
 - **Reconnection Delay** (1-60 seconds, default: 5) — Wait time between each reconnection attempt
@@ -130,19 +127,18 @@ This ensures the app doesn't consume resources trying to connect to an unavailab
 ### Bridge won't start
 - Verify your Kefas token is correct
 - Make sure ProPresenter is running on the configured host and port
-- Check that Remote Control is enabled in ProPresenter → Network
+- Check that Network is enabled in ProPresenter → Network
 - Verify the host/IP address is correct and reachable
 
 ### Connection errors
-- Check the Remote Control password matches
-- Ensure ProPresenter's Remote Control is enabled
-- Verify the port number is correct (default: 55056)
-- Try connecting from ProPresenter's built-in remote control test
+- Ensure ProPresenter's Network is enabled
+- Verify the port number is correct (default: 55056 for ProPresenter 7+)
+- Try accessing `http://localhost:55056/v1/status/slide` in your browser to verify the API is working
 
 ### Lyrics not syncing
 - Enable Debug Mode to see detailed logs
 - Check ProPresenter has lyrics on the current slide
-- Verify the WebSocket connection is green
+- Verify the connection indicator is green
 - Check the Activity Log for error messages
 
 ### "Bridge API not available"
@@ -152,7 +148,7 @@ This ensures the app doesn't consume resources trying to connect to an unavailab
 ## Debug Mode
 
 Enable Debug Mode in settings to see:
-- WebSocket connection details
+- Stream connection details
 - API request details
 - Response times
 - Full error messages
@@ -171,17 +167,16 @@ npm run build:linux    # Build for Linux
 
 ## How It Works
 
-1. **Connect** — Establishes WebSocket connection to ProPresenter
-2. **Authenticate** — Sends password (if configured)
-3. **Listen** — Waits for slide change events
-4. **Extract** — Gets slide text or notes via API
-5. **Send** — Posts to Kefas if content changed
-6. **Log** — Shows status in the activity log
+1. **Connect** — Establishes HTTP streaming connection to ProPresenter
+2. **Stream** — Receives real-time slide updates via chunked response
+3. **Extract** — Gets slide text or notes from stream data
+4. **Send** — Posts to Kefas if content changed
+5. **Log** — Shows status in the activity log
 
 ## Technical Details
 
-- Uses ProPresenter 7 WebSocket API (protocol 701)
-- Connects to `/remote` endpoint
-- Listens for slide change events
-- Fetches slide content from `/v1/status/slide` endpoint
-- Event-driven architecture (no polling)
+- Uses ProPresenter 7+ chunked streaming API
+- Connects to `/v1/status/slide?chunked=true` endpoint
+- Receives JSON chunks delimited by `\r\n\r\n`
+- Server-push architecture (no polling, no WebSocket)
+- Event-driven updates when slides change
