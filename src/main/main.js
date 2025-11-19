@@ -515,3 +515,13 @@ ipcMain.handle('clipboard:writeText', (event, text) => {
   }
 });
 
+ipcMain.handle('window:openSettings', () => {
+  try {
+    createSettingsWindow();
+    return { success: true };
+  } catch (err) {
+    console.error('Failed to open settings window:', err);
+    return { success: false, error: err.message };
+  }
+});
+

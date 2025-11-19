@@ -55,6 +55,9 @@ contextBridge.exposeInMainWorld('bridgeAPI', {
   getAppInfo() {
     return ipcRenderer.invoke('app:getInfo');
   },
+  openSettings() {
+    return ipcRenderer.invoke('window:openSettings');
+  },
   onLog(callback) {
     return registerListener('bridge:log', callback);
   },

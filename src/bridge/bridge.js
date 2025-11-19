@@ -379,8 +379,25 @@ function handleStreamFailure(errorMsg) {
     updateStatus(`Connection failed after ${MAX_RECONNECT_ATTEMPTS} attempts. Bridge stopped.`);
     updateConnectionStatus('error', `Connection failed after ${MAX_RECONNECT_ATTEMPTS} attempts`);
     
-    // Automatically stop the bridge
-    stopBridge(() => {});
+    // Preserve callbacks before stopping
+    const preservedStatusCallback = onStatusCallback;
+    const preservedConnectionCallback = onConnectionStatusCallback;
+    
+    // Stop the bridge
+    isRunning = false;
+    lastSentLyric = null;
+    streamFailureCount = 0;
+    disconnectStream();
+    
+    // Notify that bridge has stopped
+    if (preservedStatusCallback) {
+      preservedStatusCallback('Bridge stopped after max reconnection attempts.');
+    }
+    if (preservedConnectionCallback) {
+      preservedConnectionCallback({ status: 'disconnected', details: 'Bridge stopped' });
+    }
+    
+    writeDebugLog(`===== BRIDGE STOPPED (AUTO) =====`);
   } else if (!streamReconnectTimeout) {
     // Only schedule a reconnect if one isn't already scheduled
     updateStatus(`Connection failed. Retrying in ${RECONNECT_DELAY_MS / 1000}s (attempt ${streamFailureCount}/${MAX_RECONNECT_ATTEMPTS})...`);

@@ -117,7 +117,7 @@ function setupListeners() {
   cleanupListeners = [];
 
   if (!window.bridgeAPI) {
-    const msg = 'Error: Bridge API not available. Check DevTools (Cmd+Option+I) for errors.';
+    const msg = 'Error: Bridge API not available. Check DevTools (Ctrl+Shift+I or Cmd+Option+I on macOS) for errors.';
     appendLog(msg);
     console.error('window.bridgeAPI is undefined - preload.js may not be loaded');
     console.error('Available APIs:', Object.keys(window).filter(k => k.includes('API') || k.includes('bridge')));
@@ -184,6 +184,12 @@ stopBtn.addEventListener('click', () => {
 });
 
 document.getElementById('downloadLogBtn').addEventListener('click', downloadLog);
+
+document.getElementById('openSettings').addEventListener('click', () => {
+  if (window.bridgeAPI) {
+    window.bridgeAPI.openSettings();
+  }
+});
 
 // Cleanup on window unload
 window.addEventListener('beforeunload', cleanup);
