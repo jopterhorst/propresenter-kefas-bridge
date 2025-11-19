@@ -1,18 +1,64 @@
 // main.js
-const { app, BrowserWindow, ipcMain, Menu, clipboard, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, clipboard, screen, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
-const { startBridge, stopBridge, getBridgeStatus } = require('../bridge/bridge.js');
-const { setupAutoUpdater, checkForUpdates } = require('./updater.js');
+const { initializeLogPath, startBridge, stopBridge, getBridgeStatus } = require('../bridge/bridge.js');
+
+// Constants
+const WINDOW_STATE_SAVE_DEBOUNCE_MS = 500;
+const MAIN_WINDOW_WIDTH = 480;
+const MAIN_WINDOW_HEIGHT = 720;
+const SETTINGS_WINDOW_WIDTH = 600;
+const SETTINGS_WINDOW_HEIGHT = 700;
+const SETTINGS_WINDOW_MIN_WIDTH = 500;
+const SETTINGS_WINDOW_MIN_HEIGHT = 600;
 
 let mainWindow = null;
 let settingsWindow = null;
 let isQuitting = false;
 
+/**
+ * Debounces a function call
+ * @param {Function} func - Function to debounce
+ * @param {number} wait - Wait time in milliseconds
+ * @returns {Function} Debounced function
+ */
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
+/**
+ * Broadcasts a message to all open windows
+ * @param {string} channel - IPC channel name
+ * @param {...any} args - Arguments to send
+ */
+function broadcastToWindows(channel, ...args) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(channel, ...args);
+  }
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.webContents.send(channel, ...args);
+  }
+}
+
 // Window state management
 const stateFilePath = path.join(app.getPath('userData'), 'window-state.json');
 
+/**
+ * Loads saved window state (position and size) from file
+ * Validates the window is within screen bounds before returning
+ * @param {string} windowName - Name of the window ('main' or 'settings')
+ * @returns {Object|null} Window state object with x, y, width, height or null if not found/invalid
+ */
 function loadWindowState(windowName) {
   try {
     if (fs.existsSync(stateFilePath)) {
@@ -40,6 +86,11 @@ function loadWindowState(windowName) {
   return null;
 }
 
+/**
+ * Saves window state (position and size) to file
+ * @param {string} windowName - Name of the window ('main' or 'settings')
+ * @param {Object} bounds - Window bounds object with x, y, width, height
+ */
 function saveWindowState(windowName, bounds) {
   try {
     let state = {};
@@ -54,12 +105,17 @@ function saveWindowState(windowName, bounds) {
   }
 }
 
+/**
+ * Creates and configures the main application window
+ * Loads previous window state if available and sets up event handlers
+ */
 function createMainWindow() {
-  const savedState = loadWindowState('main');
+  try {
+    const savedState = loadWindowState('main');
   
   const windowOptions = {
-    width: savedState?.width || 480,
-    height: savedState?.height || 720,
+    width: savedState?.width || MAIN_WINDOW_WIDTH,
+    height: savedState?.height || MAIN_WINDOW_HEIGHT,
     resizable: false,
     show: false, // Don't show until ready
     webPreferences: {
@@ -67,7 +123,6 @@ function createMainWindow() {
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false,
-      partition: 'persist:main',
     },
   };
   
@@ -86,12 +141,16 @@ function createMainWindow() {
     mainWindow.show();
   });
   
-  // Save window position when moved
-  mainWindow.on('moved', () => {
+  // Debounce window position saves to reduce I/O
+  const debouncedSave = debounce(() => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       const bounds = mainWindow.getBounds();
       saveWindowState('main', bounds);
     }
+  }, WINDOW_STATE_SAVE_DEBOUNCE_MS);
+  
+  mainWindow.on('moved', () => {
+    debouncedSave();
   });
 
   mainWindow.on('close', (event) => {
@@ -107,31 +166,43 @@ function createMainWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+  } catch (err) {
+    console.error('Failed to create main window:', err);
+    dialog.showErrorBox('Window Creation Error', `Failed to create main window: ${err.message}`);
+  }
 }
 
+/**
+ * Creates and configures the settings window
+ * Only creates one instance at a time and focuses existing if already open
+ */
 function createSettingsWindow() {
-  if (settingsWindow) {
-    settingsWindow.focus();
-    return;
-  }
+  try {
+    if (settingsWindow) {
+      settingsWindow.focus();
+      return;
+    }
 
   const savedState = loadWindowState('settings');
   
   const windowOptions = {
-    width: savedState?.width || 600,
-    height: savedState?.height || 700,
-    minWidth: 500,
-    minHeight: 600,
+    width: savedState?.width || SETTINGS_WINDOW_WIDTH,
+    height: savedState?.height || SETTINGS_WINDOW_HEIGHT,
+    minWidth: SETTINGS_WINDOW_MIN_WIDTH,
+    minHeight: SETTINGS_WINDOW_MIN_HEIGHT,
     show: false,
-    parent: mainWindow, // Make it a child of main window (stays on top)
     webPreferences: {
       preload: path.join(__dirname, '../renderer/preload.js'),
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false,
-      partition: 'persist:main',
     },
   };
+  
+  // Set parent window if main window exists and is valid
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    windowOptions.parent = mainWindow;
+  }
   
   // Only set position if we have saved state
   if (savedState) {
@@ -148,29 +219,47 @@ function createSettingsWindow() {
     settingsWindow.show();
   });
   
-  // Save window position and size when changed
-  const saveSettingsState = () => {
+  // Debounce window state saves to reduce I/O
+  const debouncedSave = debounce(() => {
     if (settingsWindow && !settingsWindow.isDestroyed()) {
       const bounds = settingsWindow.getBounds();
       saveWindowState('settings', bounds);
     }
-  };
+  }, WINDOW_STATE_SAVE_DEBOUNCE_MS);
   
-  settingsWindow.on('moved', saveSettingsState);
-  settingsWindow.on('resize', saveSettingsState);
+  settingsWindow.on('moved', debouncedSave);
+  settingsWindow.on('resize', debouncedSave);
 
   settingsWindow.on('close', () => {
-    saveSettingsState();
+    // Save final state before closing
+    if (settingsWindow && !settingsWindow.isDestroyed()) {
+      const bounds = settingsWindow.getBounds();
+      saveWindowState('settings', bounds);
+    }
   });
 
   settingsWindow.on('closed', () => {
     settingsWindow = null;
   });
+  } catch (err) {
+    console.error('Failed to create settings window:', err);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      dialog.showMessageBox(mainWindow, {
+        type: 'error',
+        title: 'Settings Error',
+        message: 'Failed to open settings window',
+        detail: err.message
+      });
+    }
+  }
 }
 
+/**
+ * Creates and sets the application menu with platform-specific options
+ * Includes File, Edit, View, Window, and Help menus
+ */
 function createMenu() {
   const isMac = process.platform === 'darwin';
-  const { dialog } = require('electron');
   
   const template = [
     // App menu (macOS only)
@@ -274,24 +363,8 @@ function createMenu() {
       role: 'help',
       submenu: [
         {
-          label: 'Check for Updates',
-          click: () => {
-            if (app.isPackaged) {
-              checkForUpdates(true);
-            } else {
-              dialog.showMessageBox(mainWindow, {
-                type: 'info',
-                title: 'Development Mode',
-                message: 'Auto-update is disabled in development mode.',
-              });
-            }
-          },
-        },
-        { type: 'separator' },
-        {
           label: 'Learn More',
           click: async () => {
-            const { shell } = require('electron');
             await shell.openExternal('https://github.com/jopterhorst/propresenter-kefas-bridge');
           },
         },
@@ -342,15 +415,11 @@ app.on('window-all-closed', () => {
 });
 
 app.whenReady().then(() => {
+  // Initialize log file path for bridge
+  initializeLogPath(app.getPath('logs'));
+  
   createMainWindow();
   createMenu();
-  
-  // Setup auto-updater (only in production)
-  if (!app.isPackaged) {
-    console.log('Running in development mode - auto-updater disabled');
-  } else {
-    setupAutoUpdater(mainWindow);
-  }
 
   app.on('activate', () => {
     // On macOS, re-create window when dock icon is clicked and no windows open
@@ -361,55 +430,88 @@ app.whenReady().then(() => {
 });
 
 // IPC: handle start/stop from renderer
-ipcMain.handle('bridge:start', (event, token, host, port, debugMode, pollInterval, useNotes, notesTrigger, password, maxReconnect, reconnectDelay) => {
-  startBridge(token, host, port, debugMode, (msg) => {
-    // send log messages back to both windows
-    mainWindow?.webContents.send('bridge:log', msg);
-    settingsWindow?.webContents.send('bridge:log', msg);
-    // also send status update
-    const status = getBridgeStatus();
-    mainWindow?.webContents.send('bridge:status', status);
-    settingsWindow?.webContents.send('bridge:status', status);
-  }, pollInterval, useNotes, notesTrigger, (connectionStatus) => {
-    // send connection status updates
-    mainWindow?.webContents.send('bridge:connection', connectionStatus);
-    settingsWindow?.webContents.send('bridge:connection', connectionStatus);
-  }, password, maxReconnect, reconnectDelay);
-  return { success: true };
+ipcMain.handle('bridge:start', (event, token, host, port, debugMode, useNotes, notesTrigger, maxReconnect, reconnectDelay) => {
+  try {
+    startBridge(token, host, port, debugMode, (msg) => {
+      // send log messages back to both windows
+      broadcastToWindows('bridge:log', msg);
+      // also send status update
+      const status = getBridgeStatus();
+      broadcastToWindows('bridge:status', status);
+    }, useNotes, notesTrigger, (connectionStatus) => {
+      // send connection status updates
+      broadcastToWindows('bridge:connection', connectionStatus);
+    }, maxReconnect, reconnectDelay);
+    return { success: true, data: null };
+  } catch (err) {
+    console.error('Failed to start bridge:', err);
+    return { success: false, error: err.message };
+  }
 });
 
 ipcMain.handle('bridge:stop', (event) => {
-  stopBridge((msg) => {
-    mainWindow?.webContents.send('bridge:log', msg);
-    settingsWindow?.webContents.send('bridge:log', msg);
-    // also send status update
-    const status = getBridgeStatus();
-    mainWindow?.webContents.send('bridge:status', status);
-    settingsWindow?.webContents.send('bridge:status', status);
-  });
-  return { success: true };
+  try {
+    stopBridge((msg) => {
+      broadcastToWindows('bridge:log', msg);
+      // also send status update
+      const status = getBridgeStatus();
+      broadcastToWindows('bridge:status', status);
+    });
+    return { success: true, data: null };
+  } catch (err) {
+    console.error('Failed to stop bridge:', err);
+    return { success: false, error: err.message };
+  }
 });
 
 ipcMain.handle('bridge:status', (event) => {
-  return getBridgeStatus();
+  try {
+    const status = getBridgeStatus();
+    return { success: true, data: status };
+  } catch (err) {
+    console.error('Failed to get bridge status:', err);
+    return { success: false, error: err.message };
+  }
 });
 
 // Get app info (version, author, etc.)
 ipcMain.handle('app:getInfo', () => {
-  const packageJson = require('../../package.json');
-  return {
-    version: packageJson.version,
-    author: packageJson.author,
-    name: packageJson.productName || packageJson.name,
-  };
+  try {
+    const packageJson = require('../../package.json');
+    return {
+      success: true,
+      data: {
+        version: packageJson.version,
+        author: packageJson.author,
+        name: packageJson.productName || packageJson.name,
+      }
+    };
+  } catch (err) {
+    console.error('Failed to get app info:', err);
+    return {
+      success: false,
+      error: err.message
+    };
+  }
 });
 
 // Clipboard handlers
 ipcMain.handle('clipboard:readText', () => {
-  return clipboard.readText();
+  try {
+    return { success: true, data: clipboard.readText() };
+  } catch (err) {
+    console.error('Failed to read clipboard:', err);
+    return { success: false, error: err.message };
+  }
 });
 
 ipcMain.handle('clipboard:writeText', (event, text) => {
-  clipboard.writeText(text);
+  try {
+    clipboard.writeText(text);
+    return { success: true, data: null };
+  } catch (err) {
+    console.error('Failed to write clipboard:', err);
+    return { success: false, error: err.message };
+  }
 });
 

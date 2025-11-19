@@ -2,13 +2,30 @@
 const fs = require('fs');
 const path = require('path');
 
-const DEBUG_LOG_FILE = path.join(process.env.HOME || '/tmp', 'propresenter-kefas-bridge.log');
+// Maximum buffer size for stream processing (10MB)
+const MAX_BUFFER_SIZE = 10 * 1024 * 1024;
 
+let DEBUG_LOG_FILE = null;
+
+/**
+ * Initializes the debug log file path
+ * @param {string} logPath - Path to the log file directory
+ */
+function initializeLogPath(logPath) {
+  DEBUG_LOG_FILE = path.join(logPath, 'propresenter-kefas-bridge.log');
+}
+
+/**
+ * Writes a debug message to the log file and console
+ * @param {string} message - The message to log
+ */
 function writeDebugLog(message) {
   try {
-    const timestamp = new Date().toISOString();
-    const line = `[${timestamp}] ${message}\n`;
-    fs.appendFileSync(DEBUG_LOG_FILE, line);
+    if (DEBUG_LOG_FILE) {
+      const timestamp = new Date().toISOString();
+      const line = `[${timestamp}] ${message}\n`;
+      fs.appendFileSync(DEBUG_LOG_FILE, line);
+    }
     // Safely log to console, ignore EPIPE errors
     try {
       console.log(`[LOG] ${message}`);
@@ -26,8 +43,6 @@ let PRO_API_PORT = 55056; // ProPresenter API port (can be overridden)
 const KEFAS_BASE_URL = 'https://web.kefas.app';
 const KEFAS_MEETING_ID = 'live';
 
-const DEFAULT_NOTES_TRIGGER = 'Current Slide Notes';
-
 let lastSentLyric = null;
 let kefasToken = null;
 let debugMode = false;
@@ -35,24 +50,39 @@ let isRunning = false;
 let onStatusCallback = null;
 let onConnectionStatusCallback = null;
 let useNotes = false;
-let notesTrigger = DEFAULT_NOTES_TRIGGER;
+let notesTrigger = 'Current Slide Notes';
 let streamAbortController = null;
 let streamFailureCount = 0;
 let streamReconnectTimeout = null;
 let MAX_RECONNECT_ATTEMPTS = 3;
 let RECONNECT_DELAY_MS = 5000; // 5 seconds between reconnect attempts
 
+/**
+ * Updates the bridge status and sends it to the callback
+ * @param {string} message - Status message to send
+ */
 function updateStatus(message) {
   if (debugMode) console.debug(`[DEBUG] Status: ${message}`);
   onStatusCallback?.(message);
 }
 
+/**
+ * Updates the connection status with details and logs it
+ * @param {string} status - Connection status (connected, connecting, error, disconnected)
+ * @param {string} [details=''] - Additional details about the connection status
+ */
 function updateConnectionStatus(status, details = '') {
   if (debugMode) console.debug(`[DEBUG] Connection Status: ${status} - ${details}`);
   onConnectionStatusCallback?.({ status, details });
   writeDebugLog(`[CONNECTION] Status: ${status} - ${details}`);
 }
 
+/**
+ * Sends lyric content to the Kefas API
+ * @param {string} content - The lyric content to send
+ * @returns {Promise<Object>} The JSON response from Kefas API
+ * @throws {Error} If token is not configured or API request fails
+ */
 async function sendToKefas(content) {
   if (!kefasToken) {
     throw new Error('Kefas token not configured. Please set your token in settings.');
@@ -66,7 +96,8 @@ async function sendToKefas(content) {
   if (debugMode) {
     console.debug(`[DEBUG] Sending to Kefas: ${url}`);
     console.debug(`[DEBUG] Content length: ${content.length} chars`);
-    console.debug(`[DEBUG] Content preview: ${content.substring(0, 100)}...`);
+    const preview = content.length > 100 ? `${content.substring(0, 100)}...` : content;
+    console.debug(`[DEBUG] Content preview: ${preview}`);
   }
 
   const startTime = Date.now();
@@ -94,6 +125,12 @@ async function sendToKefas(content) {
   return json;
 }
 
+/**
+ * Extracts the current lyric text from ProPresenter status JSON
+ * Checks multiple possible locations and optionally uses notes instead of text
+ * @param {Object} statusJson - The status JSON object from ProPresenter
+ * @returns {string|null} The extracted lyric text or null if not found
+ */
 function extractCurrentLyric(statusJson) {
   if (!statusJson) {
     writeDebugLog(`[EXTRACT] Status JSON is null/undefined`);
@@ -171,6 +208,12 @@ function extractCurrentLyric(statusJson) {
   return text || null;
 }
 
+/**
+ * Processes a slide update from the ProPresenter stream
+ * Extracts lyrics and sends to Kefas if changed
+ * @param {Object} slideData - The slide data from ProPresenter stream
+ * @returns {Promise<void>}
+ */
 async function processSlideUpdate(slideData) {
   try {
     writeDebugLog(`[STREAM] Received slide update`);
@@ -217,6 +260,12 @@ async function processSlideUpdate(slideData) {
   }
 }
 
+/**
+ * Connects to ProPresenter's chunked streaming API for real-time slide updates
+ * @param {string} host - The ProPresenter API host
+ * @param {number} port - The ProPresenter API port
+ * @returns {Promise<void>}
+ */
 async function connectChunkedStream(host, port) {
   const url = `http://${host}:${port}/v1/status/slide?chunked=true`;
   
@@ -254,6 +303,14 @@ async function connectChunkedStream(host, port) {
       
       buffer += decoder.decode(value, { stream: true });
       
+      // Prevent buffer overflow - reset if too large
+      if (buffer.length > MAX_BUFFER_SIZE) {
+        writeDebugLog(`[STREAM] Buffer size exceeded ${MAX_BUFFER_SIZE} bytes, resetting`);
+        buffer = '';
+        updateStatus('Buffer overflow - waiting for next valid chunk...');
+        continue;
+      }
+      
       // Process complete chunks (delimited by \r\n\r\n)
       let endOfChunkPosition;
       while ((endOfChunkPosition = buffer.indexOf('\r\n\r\n')) !== -1) {
@@ -288,6 +345,9 @@ async function connectChunkedStream(host, port) {
   }
 }
 
+/**
+ * Disconnects from the ProPresenter stream and clears reconnection timeout
+ */
 function disconnectStream() {
   if (streamReconnectTimeout) {
     clearTimeout(streamReconnectTimeout);
@@ -303,6 +363,10 @@ function disconnectStream() {
   updateConnectionStatus('disconnected', 'Bridge stopped');
 }
 
+/**
+ * Handles stream connection failures and manages reconnection attempts
+ * @param {string} errorMsg - The error message describing the failure
+ */
 function handleStreamFailure(errorMsg) {
   streamFailureCount++;
   const failureMsg = `Stream connection failed (${streamFailureCount}/${MAX_RECONNECT_ATTEMPTS}): ${errorMsg}`;
@@ -334,34 +398,75 @@ function handleStreamFailure(errorMsg) {
 }
 
 
-
-function startBridge(token, host, port, debugModeEnabled, onStatus, intervalMs = 0, useNotesParam = false, notesTriggerParam = DEFAULT_NOTES_TRIGGER, onConnectionStatus = null, password = '', maxReconnectParam = 3, reconnectDelayParam = 5000) {
+/**
+ * Starts the bridge to sync ProPresenter slides with Kefas
+ * @param {string} token - Kefas API token
+ * @param {string} host - ProPresenter API host
+ * @param {number} port - ProPresenter API port
+ * @param {boolean} debugModeEnabled - Enable debug logging
+ * @param {Function} onStatus - Callback for status updates
+ * @param {boolean} [useNotesParam=false] - Use slide notes instead of text
+ * @param {string} [notesTriggerParam='Current Slide Notes'] - Trigger string to detect when to use notes
+ * @param {Function|null} [onConnectionStatus=null] - Callback for connection status updates
+ * @param {number} [maxReconnectParam=3] - Maximum reconnection attempts
+ * @param {number} [reconnectDelayParam=5000] - Delay in milliseconds between reconnection attempts
+ */
+function startBridge(token, host, port, debugModeEnabled, onStatus, useNotesParam = false, notesTriggerParam = 'Current Slide Notes', onConnectionStatus = null, maxReconnectParam = 3, reconnectDelayParam = 5000) {
   writeDebugLog(`===== BRIDGE START =====`);
-  writeDebugLog(`Token: ${token.substring(0, 5)}...`);
-  writeDebugLog(`Host: ${host}`);
-  writeDebugLog(`Port: ${port}`);
-  writeDebugLog(`Debug mode: ${debugModeEnabled}`);
-  writeDebugLog(`Use Notes: ${useNotesParam}, Trigger: "${notesTriggerParam}"`);
-  writeDebugLog(`Max Reconnect Attempts: ${maxReconnectParam}`);
-  writeDebugLog(`Reconnect Delay: ${reconnectDelayParam}ms`);
   
   if (isRunning) {
     onStatus?.('Bridge is already running.');
     return;
   }
-  if (!token) {
-    onStatus?.('Error: Kefas token is required.');
+  
+  // Validate required parameters
+  if (!token || typeof token !== 'string' || token.trim().length === 0) {
+    onStatus?.('Error: Kefas token is required and must be a non-empty string.');
     return;
   }
   
+  // Validate host
+  if (!host || typeof host !== 'string' || host.trim().length === 0) {
+    onStatus?.('Error: ProPresenter host is required.');
+    return;
+  }
+  
+  // Validate port
+  const portNum = parseInt(port);
+  if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+    onStatus?.('Error: Port must be a number between 1 and 65535.');
+    return;
+  }
+  
+  // Validate reconnection parameters
+  const maxReconnect = parseInt(maxReconnectParam);
+  if (isNaN(maxReconnect) || maxReconnect < 1 || maxReconnect > 10) {
+    onStatus?.('Error: Max reconnection attempts must be between 1 and 10.');
+    return;
+  }
+  
+  const reconnectDelay = parseInt(reconnectDelayParam);
+  if (isNaN(reconnectDelay) || reconnectDelay < 1000 || reconnectDelay > 60000) {
+    onStatus?.('Error: Reconnect delay must be between 1000 and 60000 milliseconds.');
+    return;
+  }
+  
+  writeDebugLog(`Token: ${token.substring(0, 5)}...`);
+  writeDebugLog(`Host: ${host}`);
+  writeDebugLog(`Port: ${portNum}`);
+  writeDebugLog(`Debug mode: ${debugModeEnabled}`);
+  writeDebugLog(`Use Notes: ${useNotesParam}, Trigger: "${notesTriggerParam}"`);
+  writeDebugLog(`Max Reconnect Attempts: ${maxReconnect}`);
+  writeDebugLog(`Reconnect Delay: ${reconnectDelay}ms`);
+  
   // Set the ProPresenter API host and port from settings
-  PRO_API_HOST = host || '127.0.0.1';
-  PRO_API_PORT = parseInt(port) || 55056;
+  PRO_API_HOST = host.trim();
+  PRO_API_PORT = portNum;
   
   debugMode = debugModeEnabled || false;
-  kefasToken = token;
+  kefasToken = token.trim();
   useNotes = useNotesParam || false;
-  notesTrigger = notesTriggerParam || DEFAULT_NOTES_TRIGGER;
+  notesTrigger = notesTriggerParam || 'Current Slide Notes';
   isRunning = true;
   onStatusCallback = onStatus;
   onConnectionStatusCallback = onConnectionStatus;
@@ -369,8 +474,8 @@ function startBridge(token, host, port, debugModeEnabled, onStatus, intervalMs =
   streamFailureCount = 0; // Reset failure counter on start
   
   // Set reconnection parameters from settings
-  MAX_RECONNECT_ATTEMPTS = maxReconnectParam || 3;
-  RECONNECT_DELAY_MS = reconnectDelayParam || 5000;
+  MAX_RECONNECT_ATTEMPTS = maxReconnect;
+  RECONNECT_DELAY_MS = reconnectDelay;
   
   if (debugMode) console.debug(`[DEBUG] Debug mode enabled`);
   console.log(`Bridge starting with chunked streaming to ProPresenter API on port ${PRO_API_PORT}`);
@@ -383,6 +488,10 @@ function startBridge(token, host, port, debugModeEnabled, onStatus, intervalMs =
   connectChunkedStream(PRO_API_HOST, PRO_API_PORT);
 }
 
+/**
+ * Stops the bridge and disconnects from ProPresenter
+ * @param {Function} onStatus - Callback for status updates
+ */
 function stopBridge(onStatus) {
   if (!isRunning) {
     onStatus?.('Bridge is not running.');
@@ -402,19 +511,25 @@ function stopBridge(onStatus) {
   onStatus?.('Bridge stopped.');
 }
 
+/**
+ * Gets the current bridge running status
+ * @returns {{isRunning: boolean}} Object containing the running status
+ */
 function getBridgeStatus() {
   return { isRunning };
 }
 
-module.exports = { startBridge, stopBridge, getBridgeStatus };
+module.exports = { initializeLogPath, startBridge, stopBridge, getBridgeStatus };
 
-// Handle EPIPE errors globally
+// Handle EPIPE errors globally but log other errors
 process.on('uncaughtException', (err) => {
   if (err.code === 'EPIPE') {
-    // Silently ignore EPIPE errors
+    // Silently ignore EPIPE errors (broken pipe)
     return;
   }
+  // Log other uncaught exceptions
   console.error('Uncaught error:', err);
+  writeDebugLog(`[ERROR] Uncaught exception: ${err.message}`);
 });
 
 process.on('unhandledRejection', (err) => {
@@ -422,6 +537,8 @@ process.on('unhandledRejection', (err) => {
     // Silently ignore EPIPE errors
     return;
   }
+  // Log other unhandled rejections
   console.error('Unhandled rejection:', err);
+  writeDebugLog(`[ERROR] Unhandled rejection: ${err?.message || err}`);
 });
 

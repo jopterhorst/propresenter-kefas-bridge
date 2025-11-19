@@ -5,7 +5,10 @@ const { contextBridge, ipcRenderer } = require('electron');
 const listeners = new Map();
 
 /**
- * Register a listener with automatic cleanup capability
+ * Registers a listener with automatic cleanup capability
+ * @param {string} channel - The IPC channel to listen on
+ * @param {Function} callback - The callback function to invoke when message is received
+ * @returns {Function} Cleanup function to remove the listener
  */
 function registerListener(channel, callback) {
   const wrappedCallback = (_event, ...args) => callback(...args);
@@ -28,7 +31,8 @@ function registerListener(channel, callback) {
 }
 
 /**
- * Clean up all registered listeners (called on window unload)
+ * Cleans up all registered IPC listeners
+ * Called automatically on window unload to prevent memory leaks
  */
 function cleanupAllListeners() {
   listeners.forEach(cleanup => cleanup());
@@ -39,8 +43,8 @@ function cleanupAllListeners() {
 window.addEventListener('beforeunload', cleanupAllListeners);
 
 contextBridge.exposeInMainWorld('bridgeAPI', {
-  start(token, host, port, debugMode, pollInterval, useNotes, notesTrigger, password, maxReconnect, reconnectDelay) {
-    return ipcRenderer.invoke('bridge:start', token, host, port, debugMode, pollInterval, useNotes, notesTrigger, password, maxReconnect, reconnectDelay);
+  start(token, host, port, debugMode, useNotes, notesTrigger, maxReconnect, reconnectDelay) {
+    return ipcRenderer.invoke('bridge:start', token, host, port, debugMode, useNotes, notesTrigger, maxReconnect, reconnectDelay);
   },
   stop() {
     return ipcRenderer.invoke('bridge:stop');

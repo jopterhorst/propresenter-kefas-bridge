@@ -1,4 +1,12 @@
 // main.js - Main window script
+
+// Constants
+const DEFAULT_HOST = '127.0.0.1';
+const DEFAULT_PORT = '55056';
+const DEFAULT_NOTES_TRIGGER = 'Current Slide Notes';
+const DEFAULT_MAX_RECONNECT = '3';
+const DEFAULT_RECONNECT_DELAY = '5000';
+
 const logEl = document.getElementById('log');
 const startBtn = document.getElementById('start');
 const stopBtn = document.getElementById('stop');
@@ -7,8 +15,7 @@ const connectionText = document.getElementById('connectionText');
 const connectionDetails = document.getElementById('connectionDetails');
 
 let bridgeRunning = false;
-let connectionStatus = { status: 'disconnected', details: '', wsConnected: false };
-let statusSyncInterval = null;
+let connectionStatus = { status: 'disconnected', details: '' };
 
 // Store cleanup functions for listeners
 let cleanupListeners = [];
@@ -79,8 +86,8 @@ function updateConnectionStatus() {
   } else {
     connectionDot.className = 'connection-dot disconnected';
     connectionText.textContent = 'Not connected';
-    const host = localStorage.getItem('proPresenterHost') || '127.0.0.1';
-    const port = localStorage.getItem('proPresenterPort') || '55056';
+    const host = localStorage.getItem('proPresenterHost') || DEFAULT_HOST;
+    const port = localStorage.getItem('proPresenterPort') || DEFAULT_PORT;
     connectionDetails.textContent = `Will connect to ${host}:${port}`;
   }
 }
@@ -93,10 +100,12 @@ function updateButtonStates() {
 async function syncBridgeStatus() {
   if (!window.bridgeAPI) return;
   try {
-    const status = await window.bridgeAPI.getStatus();
-    bridgeRunning = status.isRunning;
-    updateConnectionStatus();
-    updateButtonStates();
+    const response = await window.bridgeAPI.getStatus();
+    if (response.success && response.data) {
+      bridgeRunning = response.data.isRunning;
+      updateConnectionStatus();
+      updateButtonStates();
+    }
   } catch (err) {
     console.error('Failed to get bridge status:', err);
   }
@@ -131,12 +140,6 @@ function setupListeners() {
 }
 
 function cleanup() {
-  // Clear the status sync interval
-  if (statusSyncInterval) {
-    clearInterval(statusSyncInterval);
-    statusSyncInterval = null;
-  }
-  
   // Clean up IPC listeners
   cleanupListeners.forEach(cleanup => cleanup());
   cleanupListeners = [];
@@ -159,15 +162,15 @@ startBtn.addEventListener('click', () => {
     return;
   }
   
-  const host = localStorage.getItem('proPresenterHost') || '127.0.0.1';
-  const port = parseInt(localStorage.getItem('proPresenterPort') || '55056');
+  const host = localStorage.getItem('proPresenterHost') || DEFAULT_HOST;
+  const port = parseInt(localStorage.getItem('proPresenterPort') || DEFAULT_PORT);
   const useNotes = localStorage.getItem('useNotes') === 'true';
-  const notesTrigger = localStorage.getItem('notesTrigger') || 'Current Slide Notes';
+  const notesTrigger = localStorage.getItem('notesTrigger') || DEFAULT_NOTES_TRIGGER;
   const debugMode = localStorage.getItem('debugMode') === 'true';
-  const maxReconnect = parseInt(localStorage.getItem('maxReconnectAttempts') || '3');
-  const reconnectDelay = parseInt(localStorage.getItem('reconnectDelayMs') || '5000');
+  const maxReconnect = parseInt(localStorage.getItem('maxReconnectAttempts') || DEFAULT_MAX_RECONNECT);
+  const reconnectDelay = parseInt(localStorage.getItem('reconnectDelayMs') || DEFAULT_RECONNECT_DELAY);
   appendLog('Start requested.');
-  window.bridgeAPI.start(token, host, port, debugMode, 0, useNotes, notesTrigger, '', maxReconnect, reconnectDelay);
+  window.bridgeAPI.start(token, host, port, debugMode, useNotes, notesTrigger, maxReconnect, reconnectDelay);
 });
 
 stopBtn.addEventListener('click', () => {
@@ -188,16 +191,19 @@ window.addEventListener('beforeunload', cleanup);
 // Load and display app info
 async function loadAppInfo() {
   try {
-    const appInfo = await window.bridgeAPI.getAppInfo();
-    const versionEl = document.getElementById('appVersion');
-    const copyrightEl = document.getElementById('appCopyright');
-    
-    if (versionEl) {
-      versionEl.textContent = `Version ${appInfo.version}`;
-    }
-    if (copyrightEl) {
-      const year = new Date().getFullYear();
-      copyrightEl.textContent = `© ${year} ${appInfo.author}`;
+    const response = await window.bridgeAPI.getAppInfo();
+    if (response.success && response.data) {
+      const appInfo = response.data;
+      const versionEl = document.getElementById('appVersion');
+      const copyrightEl = document.getElementById('appCopyright');
+      
+      if (versionEl) {
+        versionEl.textContent = `Version ${appInfo.version}`;
+      }
+      if (copyrightEl) {
+        const year = new Date().getFullYear();
+        copyrightEl.textContent = `© ${year} ${appInfo.author}`;
+      }
     }
   } catch (err) {
     console.error('Failed to load app info:', err);
@@ -210,9 +216,5 @@ syncBridgeStatus();
 updateConnectionStatus();
 loadAppInfo();
 
-// Periodically sync status (every 2 seconds) - only when bridge is running
-statusSyncInterval = setInterval(() => {
-  if (bridgeRunning) {
-    syncBridgeStatus();
-  }
-}, 2000);
+// Note: Status updates are now event-driven via IPC listeners
+// No need for constant polling as status changes are pushed to renderer

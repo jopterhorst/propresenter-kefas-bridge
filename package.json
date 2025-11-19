@@ -18,23 +18,14 @@
     "electron-builder": "^24.0.0"
   },
   "dependencies": {
-    "electron-updater": "^6.3.0",
     "node-fetch": "^3.0.0"
   },
   "build": {
     "appId": "com.jopterhorst.propresenter-kefas-bridge.app",
     "productName": "ProPresenter Kefas Bridge",
     "icon": "src/assets/icon.png",
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "jopterhorst",
-        "repo": "propresenter-kefas-bridge"
-      }
-    ],
     "files": [
       "src/main/main.js",
-      "src/main/updater.js",
       "src/bridge/bridge.js",
       "src/renderer/preload.js",
       "src/renderer/main.html",
