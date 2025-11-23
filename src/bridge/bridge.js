@@ -284,6 +284,8 @@ async function connectChunkedStream(host, port) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     
+    // Reset failure count on successful connection
+    streamFailureCount = 0;
     updateConnectionStatus('connected', `Streaming from ${host}:${port}`);
     updateStatus('Connected - listening for slide changes...');
     writeDebugLog(`[STREAM] Connected successfully, reading stream...`);
