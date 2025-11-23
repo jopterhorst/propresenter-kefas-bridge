@@ -1,7 +1,7 @@
 {
   "name": "propresenter-kefas-bridge",
   "productName": "ProPresenter Kefas Bridge",
-  "version": "2025.11.3",
+  "version": "2025.11.4",
   "description": "Bridge ProPresenter lyrics to Kefas API",
   "author": "Jop ter Horst",
   "main": "src/main/main.js",
