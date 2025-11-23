@@ -43,8 +43,8 @@ function cleanupAllListeners() {
 window.addEventListener('beforeunload', cleanupAllListeners);
 
 contextBridge.exposeInMainWorld('bridgeAPI', {
-  start(token, host, port, debugMode, useNotes, notesTrigger, maxReconnect, reconnectDelay) {
-    return ipcRenderer.invoke('bridge:start', token, host, port, debugMode, useNotes, notesTrigger, maxReconnect, reconnectDelay);
+  start(token, host, port, useNotes, notesTrigger, maxReconnect, reconnectDelay) {
+    return ipcRenderer.invoke('bridge:start', token, host, port, useNotes, notesTrigger, maxReconnect, reconnectDelay);
   },
   stop() {
     return ipcRenderer.invoke('bridge:stop');

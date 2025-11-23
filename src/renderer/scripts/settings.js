@@ -19,7 +19,6 @@ const useNotesToggle = document.getElementById('useNotesToggle');
 const notesTriggerInput = document.getElementById('notesTriggerInput');
 const maxReconnectInput = document.getElementById('maxReconnectInput');
 const reconnectDelayInput = document.getElementById('reconnectDelayInput');
-const debugToggle = document.getElementById('debugToggle');
 const saveBtn = document.getElementById('saveBtn');
 const hostInput = document.getElementById('hostInput');
 
@@ -41,9 +40,6 @@ function loadSettings() {
   
   const notesTrigger = localStorage.getItem('notesTrigger');
   notesTriggerInput.value = notesTrigger || DEFAULT_NOTES_TRIGGER;
-  
-  const debugMode = localStorage.getItem('debugMode') === 'true';
-  debugToggle.checked = debugMode;
   
   const maxReconnect = localStorage.getItem('maxReconnectAttempts');
   maxReconnectInput.value = maxReconnect || DEFAULT_MAX_RECONNECT;
@@ -97,7 +93,6 @@ function saveSettings() {
   localStorage.setItem('notesTrigger', notesTrigger);
   localStorage.setItem('maxReconnectAttempts', maxReconnect);
   localStorage.setItem('reconnectDelayMs', reconnectDelay * 1000);
-  localStorage.setItem('debugMode', debugToggle.checked ? 'true' : 'false');
   
   window.close();
 }

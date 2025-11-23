@@ -87,7 +87,6 @@ Click **Save Settings**.
 | Notes Trigger | "Current Slide Notes" | Trigger string |
 | Max Reconnection Attempts | 3 | Number of times to retry if connection drops |
 | Reconnection Delay | 5 seconds | Wait time between reconnection attempts |
-| Debug Mode | Off | Verbose logging |
 
 ### Settings Interface
 
@@ -165,24 +164,32 @@ This ensures the app doesn't consume resources trying to connect to an unavailab
 - Try accessing `http://localhost:55056/v1/status/slide` in your browser to verify the API is working
 
 ### Lyrics not syncing
-- Enable Debug Mode to see detailed logs
+- Check the Activity Log for error messages
 - Check ProPresenter has lyrics on the current slide
 - Verify the connection indicator is green
-- Check the Activity Log for error messages
 
 ### "Bridge API not available"
 - Restart the app
 - Check browser console for errors (Cmd+Option+I)
 
-## Debug Mode
+## Logging
 
-Enable Debug Mode in settings to see:
-- Stream connection details
-- API request details
-- Response times
-- Full error messages
+Detailed logs are automatically saved to disk every time the bridge runs. Each session creates a new timestamped log file:
 
-The debug log is saved to `~/propresenter-kefas-bridge.log`
+- **macOS**: `~/Library/Logs/ProPresenter Kefas Bridge/propresenter-kefas-bridge-YYYY-MM-DD-HHmmss.log`
+- **Windows**: `%APPDATA%\ProPresenter Kefas Bridge\logs\propresenter-kefas-bridge-YYYY-MM-DD-HHmmss.log`
+- **Linux**: `~/.config/ProPresenter Kefas Bridge/logs/propresenter-kefas-bridge-YYYY-MM-DD-HHmmss.log`
+
+To access logs:
+- Use the **Help → Open Log Location** menu item to open the logs folder
+- Or navigate to the paths above using your file manager
+
+Logs include:
+- Connection status and stream events
+- API requests and responses
+- Slide extraction details
+- Error messages and stack traces
+- Full activity timeline
 
 ## Development
 

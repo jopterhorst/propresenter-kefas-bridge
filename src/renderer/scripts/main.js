@@ -93,6 +93,8 @@ function updateConnectionStatus() {
 }
 
 function updateButtonStates() {
+  console.log(`[BUTTON] Updating button states - bridgeRunning: ${bridgeRunning}`);
+  console.log(`[BUTTON] Start button disabled: ${bridgeRunning}, Stop button disabled: ${!bridgeRunning}`);
   startBtn.disabled = bridgeRunning;
   stopBtn.disabled = !bridgeRunning;
 }
@@ -129,11 +131,13 @@ function setupListeners() {
   // Set up IPC listeners and store cleanup functions
   cleanupListeners.push(window.bridgeAPI.onLog(appendLog));
   cleanupListeners.push(window.bridgeAPI.onStatus((status) => {
+    console.log(`[STATUS] Received status update:`, status);
     bridgeRunning = status.isRunning;
     updateConnectionStatus();
     updateButtonStates();
   }));
   cleanupListeners.push(window.bridgeAPI.onConnection((connStatus) => {
+    console.log(`[CONNECTION] Received connection status:`, connStatus);
     connectionStatus = connStatus;
     updateConnectionStatus();
   }));
@@ -166,11 +170,10 @@ startBtn.addEventListener('click', () => {
   const port = parseInt(localStorage.getItem('proPresenterPort') || DEFAULT_PORT);
   const useNotes = localStorage.getItem('useNotes') === 'true';
   const notesTrigger = localStorage.getItem('notesTrigger') || DEFAULT_NOTES_TRIGGER;
-  const debugMode = localStorage.getItem('debugMode') === 'true';
   const maxReconnect = parseInt(localStorage.getItem('maxReconnectAttempts') || DEFAULT_MAX_RECONNECT);
   const reconnectDelay = parseInt(localStorage.getItem('reconnectDelayMs') || DEFAULT_RECONNECT_DELAY);
   appendLog('Start requested.');
-  window.bridgeAPI.start(token, host, port, debugMode, useNotes, notesTrigger, maxReconnect, reconnectDelay);
+  window.bridgeAPI.start(token, host, port, useNotes, notesTrigger, maxReconnect, reconnectDelay);
 });
 
 stopBtn.addEventListener('click', () => {

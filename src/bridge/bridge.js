@@ -5,14 +5,34 @@ const path = require('path');
 // Maximum buffer size for stream processing (10MB)
 const MAX_BUFFER_SIZE = 10 * 1024 * 1024;
 
+let DEBUG_LOG_DIR = null;
 let DEBUG_LOG_FILE = null;
 
 /**
- * Initializes the debug log file path
- * @param {string} logPath - Path to the log file directory
+ * Initializes the debug log directory path
+ * @param {string} logPath - Path to the log directory
  */
 function initializeLogPath(logPath) {
-  DEBUG_LOG_FILE = path.join(logPath, 'propresenter-kefas-bridge.log');
+  DEBUG_LOG_DIR = logPath;
+}
+
+/**
+ * Creates a new timestamped log file for the current session
+ * Format: propresenter-kefas-bridge-YYYY-MM-DD-HHmmss.log
+ */
+function createSessionLogFile() {
+  if (!DEBUG_LOG_DIR) return null;
+  
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  
+  const filename = `propresenter-kefas-bridge-${year}-${month}-${day}-${hours}${minutes}${seconds}.log`;
+  return path.join(DEBUG_LOG_DIR, filename);
 }
 
 /**
@@ -45,7 +65,6 @@ const KEFAS_MEETING_ID = 'live';
 
 let lastSentLyric = null;
 let kefasToken = null;
-let debugMode = false;
 let isRunning = false;
 let onStatusCallback = null;
 let onConnectionStatusCallback = null;
@@ -62,7 +81,7 @@ let RECONNECT_DELAY_MS = 5000; // 5 seconds between reconnect attempts
  * @param {string} message - Status message to send
  */
 function updateStatus(message) {
-  if (debugMode) console.debug(`[DEBUG] Status: ${message}`);
+  writeDebugLog(`[STATUS] ${message}`);
   onStatusCallback?.(message);
 }
 
@@ -72,9 +91,8 @@ function updateStatus(message) {
  * @param {string} [details=''] - Additional details about the connection status
  */
 function updateConnectionStatus(status, details = '') {
-  if (debugMode) console.debug(`[DEBUG] Connection Status: ${status} - ${details}`);
-  onConnectionStatusCallback?.({ status, details });
   writeDebugLog(`[CONNECTION] Status: ${status} - ${details}`);
+  onConnectionStatusCallback?.({ status, details });
 }
 
 /**
@@ -91,16 +109,7 @@ async function sendToKefas(content) {
   const url = `${KEFAS_BASE_URL}/api/public/meetings/${KEFAS_MEETING_ID}/messages`;
   
   writeDebugLog(`[SEND] Sending to Kefas - length: ${content.length} chars`);
-  writeDebugLog(`[SEND] Content: "${content.substring(0, 200)}${content.length > 200 ? '...' : ''}"`);
-  
-  if (debugMode) {
-    console.debug(`[DEBUG] Sending to Kefas: ${url}`);
-    console.debug(`[DEBUG] Content length: ${content.length} chars`);
-    const preview = content.length > 100 ? `${content.substring(0, 100)}...` : content;
-    console.debug(`[DEBUG] Content preview: ${preview}`);
-  }
-
-  const startTime = Date.now();
+  writeDebugLog(`[SEND] Content: "${content.substring(0, 200)}${content.length > 200 ? '...' : ''}"`);  const startTime = Date.now();
   const res = await fetch(url, {
     method: 'POST',
     headers: {
@@ -111,7 +120,6 @@ async function sendToKefas(content) {
   });
   const duration = Date.now() - startTime;
 
-  if (debugMode) console.debug(`[DEBUG] Kefas response status: ${res.status} (${duration}ms)`);
   writeDebugLog(`[SEND] Kefas response: ${res.status} (${duration}ms)`);
 
   if (!res.ok) {
@@ -120,7 +128,7 @@ async function sendToKefas(content) {
   }
 
   const json = await res.json();
-  if (debugMode) console.debug(`[DEBUG] Kefas response:`, json);
+  writeDebugLog(`[SEND] Kefas response: ${JSON.stringify(json).substring(0, 200)}...`);
   writeDebugLog(`[SEND] Successfully sent to Kefas`);
   return json;
 }
@@ -134,7 +142,6 @@ async function sendToKefas(content) {
 function extractCurrentLyric(statusJson) {
   if (!statusJson) {
     writeDebugLog(`[EXTRACT] Status JSON is null/undefined`);
-    if (debugMode) console.debug(`[DEBUG] Status JSON is null/undefined`);
     return null;
   }
 
@@ -150,7 +157,6 @@ function extractCurrentLyric(statusJson) {
   
   if (!text) {
     writeDebugLog(`[EXTRACT] No text found in any candidate field`);
-    if (debugMode) console.debug(`[DEBUG] No text found in status:`, statusJson);
     return null;
   }
 
@@ -200,10 +206,6 @@ function extractCurrentLyric(statusJson) {
     }
   }
 
-  if (debugMode) {
-    console.debug(`[DEBUG] Extracted text:`, text);
-  }
-
   writeDebugLog(`[EXTRACT] Final extracted text: ${text ? `"${text.substring(0, 150)}${text.length > 150 ? '...' : ''}"` : 'NULL'}`);
   return text || null;
 }
@@ -221,7 +223,7 @@ async function processSlideUpdate(slideData) {
     const lyric = extractCurrentLyric(slideData);
 
     if (!lyric) {
-      if (debugMode) console.debug(`[DEBUG] No lyric on slide`);
+      writeDebugLog(`[STREAM] No lyric found on current slide`);
       updateStatus('No lyric found on current slide.');
       return;
     }
@@ -235,18 +237,13 @@ async function processSlideUpdate(slideData) {
     }
 
     if (lyric === lastSentLyric) {
-      if (debugMode) console.debug(`[DEBUG] Lyric unchanged`);
       writeDebugLog(`[STREAM] Lyric unchanged, not sending`);
       return;
     }
 
-    if (debugMode) {
-      console.debug(`[DEBUG] New lyric detected!`);
-      console.debug(`[DEBUG] Previous lyric: ${lastSentLyric?.substring(0, 100) || 'none'}...`);
-      console.debug(`[DEBUG] New lyric: ${lyric.substring(0, 100)}...`);
-    }
-
     writeDebugLog(`[STREAM] New lyric detected - length: ${lyric.length} chars`);
+    writeDebugLog(`[STREAM] Previous lyric: "${lastSentLyric?.substring(0, 100) || 'none'}..."`);
+    writeDebugLog(`[STREAM] New lyric: "${lyric.substring(0, 100)}..."`);
     writeDebugLog(`[STREAM] Content: "${lyric.substring(0, 200)}${lyric.length > 200 ? '...' : ''}"`);
     updateStatus(`Sending: ${lyric.substring(0, 50)}${lyric.length > 50 ? '...' : ''}`);
     await sendToKefas(lyric);
@@ -256,7 +253,7 @@ async function processSlideUpdate(slideData) {
   } catch (err) {
     updateStatus(`Error: ${err.message}`);
     writeDebugLog(`[STREAM] Error processing slide: ${err.message}`);
-    if (debugMode) console.error('[DEBUG] Processing error:', err);
+    writeDebugLog(`[STREAM] Error stack: ${err.stack}`);
   }
 }
 
@@ -270,7 +267,6 @@ async function connectChunkedStream(host, port) {
   const url = `http://${host}:${port}/v1/status/slide?chunked=true`;
   
   writeDebugLog(`[STREAM] Connecting to chunked stream: ${url}`);
-  if (debugMode) console.debug(`[DEBUG] Connecting to chunked stream: ${url}`);
   updateConnectionStatus('connecting', 'Connecting to ProPresenter API...');
   
   try {
@@ -324,8 +320,7 @@ async function connectChunkedStream(host, port) {
           const slideData = JSON.parse(chunk);
           await processSlideUpdate(slideData);
         } catch (e) {
-          writeDebugLog(`[STREAM] Failed to parse chunk: ${e.message}`);
-          if (debugMode) console.error('[DEBUG] Parse error:', e);
+          writeDebugLog(`[STREAM] Failed to parse chunk: ${e.message} - First 100 chars: ${chunk.substring(0, 100)}`);
         }
       }
     }
@@ -341,7 +336,7 @@ async function connectChunkedStream(host, port) {
       updateConnectionStatus('disconnected', 'Connection closed');
     } else {
       writeDebugLog(`[STREAM] Connection error: ${err.message}`);
-      if (debugMode) console.error(`[DEBUG] Stream error:`, err);
+      writeDebugLog(`[STREAM] Error stack: ${err.stack}`);
       handleStreamFailure(err.message);
     }
   }
@@ -373,17 +368,11 @@ function handleStreamFailure(errorMsg) {
   streamFailureCount++;
   const failureMsg = `Stream connection failed (${streamFailureCount}/${MAX_RECONNECT_ATTEMPTS}): ${errorMsg}`;
   writeDebugLog(`[STREAM] ${failureMsg}`);
-  if (debugMode) console.debug(`[DEBUG] ${failureMsg}`);
   
   if (streamFailureCount >= MAX_RECONNECT_ATTEMPTS) {
     writeDebugLog(`[STREAM] Max reconnection attempts reached. Stopping bridge.`);
-    if (debugMode) console.debug(`[DEBUG] Max reconnection attempts reached`);
     updateStatus(`Connection failed after ${MAX_RECONNECT_ATTEMPTS} attempts. Bridge stopped.`);
     updateConnectionStatus('error', `Connection failed after ${MAX_RECONNECT_ATTEMPTS} attempts`);
-    
-    // Preserve callbacks before stopping
-    const preservedStatusCallback = onStatusCallback;
-    const preservedConnectionCallback = onConnectionStatusCallback;
     
     // Stop the bridge
     isRunning = false;
@@ -391,13 +380,9 @@ function handleStreamFailure(errorMsg) {
     streamFailureCount = 0;
     disconnectStream();
     
-    // Notify that bridge has stopped
-    if (preservedStatusCallback) {
-      preservedStatusCallback('Bridge stopped after max reconnection attempts.');
-    }
-    if (preservedConnectionCallback) {
-      preservedConnectionCallback({ status: 'disconnected', details: 'Bridge stopped' });
-    }
+    // Notify that bridge has stopped - use the current callbacks
+    onStatusCallback?.('Bridge stopped after max reconnection attempts.');
+    onConnectionStatusCallback?.({ status: 'disconnected', details: 'Bridge stopped' });
     
     writeDebugLog(`===== BRIDGE STOPPED (AUTO) =====`);
   } else if (!streamReconnectTimeout) {
@@ -422,7 +407,6 @@ function handleStreamFailure(errorMsg) {
  * @param {string} token - Kefas API token
  * @param {string} host - ProPresenter API host
  * @param {number} port - ProPresenter API port
- * @param {boolean} debugModeEnabled - Enable debug logging
  * @param {Function} onStatus - Callback for status updates
  * @param {boolean} [useNotesParam=false] - Use slide notes instead of text
  * @param {string} [notesTriggerParam='Current Slide Notes'] - Trigger string to detect when to use notes
@@ -430,7 +414,10 @@ function handleStreamFailure(errorMsg) {
  * @param {number} [maxReconnectParam=3] - Maximum reconnection attempts
  * @param {number} [reconnectDelayParam=5000] - Delay in milliseconds between reconnection attempts
  */
-function startBridge(token, host, port, debugModeEnabled, onStatus, useNotesParam = false, notesTriggerParam = 'Current Slide Notes', onConnectionStatus = null, maxReconnectParam = 3, reconnectDelayParam = 5000) {
+function startBridge(token, host, port, onStatus, useNotesParam = false, notesTriggerParam = 'Current Slide Notes', onConnectionStatus = null, maxReconnectParam = 3, reconnectDelayParam = 5000) {
+  // Create a new timestamped log file for this session
+  DEBUG_LOG_FILE = createSessionLogFile();
+  
   writeDebugLog(`===== BRIDGE START =====`);
   
   if (isRunning) {
@@ -473,7 +460,6 @@ function startBridge(token, host, port, debugModeEnabled, onStatus, useNotesPara
   writeDebugLog(`Token: ${token.substring(0, 5)}...`);
   writeDebugLog(`Host: ${host}`);
   writeDebugLog(`Port: ${portNum}`);
-  writeDebugLog(`Debug mode: ${debugModeEnabled}`);
   writeDebugLog(`Use Notes: ${useNotesParam}, Trigger: "${notesTriggerParam}"`);
   writeDebugLog(`Max Reconnect Attempts: ${maxReconnect}`);
   writeDebugLog(`Reconnect Delay: ${reconnectDelay}ms`);
@@ -482,7 +468,6 @@ function startBridge(token, host, port, debugModeEnabled, onStatus, useNotesPara
   PRO_API_HOST = host.trim();
   PRO_API_PORT = portNum;
   
-  debugMode = debugModeEnabled || false;
   kefasToken = token.trim();
   useNotes = useNotesParam || false;
   notesTrigger = notesTriggerParam || 'Current Slide Notes';
@@ -496,7 +481,6 @@ function startBridge(token, host, port, debugModeEnabled, onStatus, useNotesPara
   MAX_RECONNECT_ATTEMPTS = maxReconnect;
   RECONNECT_DELAY_MS = reconnectDelay;
   
-  if (debugMode) console.debug(`[DEBUG] Debug mode enabled`);
   console.log(`Bridge starting with chunked streaming to ProPresenter API on port ${PRO_API_PORT}`);
   writeDebugLog(`Bridge starting - using chunked stream for real-time slide updates`);
   

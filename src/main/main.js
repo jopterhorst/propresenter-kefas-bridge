@@ -363,6 +363,14 @@ function createMenu() {
       role: 'help',
       submenu: [
         {
+          label: 'Open Log Location',
+          click: async () => {
+            const logDir = app.getPath('logs');
+            await shell.openPath(logDir);
+          },
+        },
+        { type: 'separator' },
+        {
           label: 'Learn More',
           click: async () => {
             await shell.openExternal('https://github.com/jopterhorst/propresenter-kefas-bridge');
@@ -430,9 +438,9 @@ app.whenReady().then(() => {
 });
 
 // IPC: handle start/stop from renderer
-ipcMain.handle('bridge:start', (event, token, host, port, debugMode, useNotes, notesTrigger, maxReconnect, reconnectDelay) => {
+ipcMain.handle('bridge:start', (event, token, host, port, useNotes, notesTrigger, maxReconnect, reconnectDelay) => {
   try {
-    startBridge(token, host, port, debugMode, (msg) => {
+    startBridge(token, host, port, (msg) => {
       // send log messages back to both windows
       broadcastToWindows('bridge:log', msg);
       // also send status update
@@ -441,7 +449,15 @@ ipcMain.handle('bridge:start', (event, token, host, port, debugMode, useNotes, n
     }, useNotes, notesTrigger, (connectionStatus) => {
       // send connection status updates
       broadcastToWindows('bridge:connection', connectionStatus);
+      // also send status update when connection status changes
+      const status = getBridgeStatus();
+      broadcastToWindows('bridge:status', status);
     }, maxReconnect, reconnectDelay);
+    
+    // Send initial status update immediately after starting
+    const status = getBridgeStatus();
+    broadcastToWindows('bridge:status', status);
+    
     return { success: true, data: null };
   } catch (err) {
     console.error('Failed to start bridge:', err);
