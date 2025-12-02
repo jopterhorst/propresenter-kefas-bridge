@@ -83,6 +83,34 @@
           />
           <p class="info-text">If slide text contains this string, use notes attribute instead. Default: "Current Slide Notes"</p>
         </div>
+
+        <div class="form-group" style="margin-top: 16px; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 16px;">
+          <label for="alternateLanguageInput">Alternate Language (for Notes)</label>
+          <input 
+            type="text" 
+            id="alternateLanguageInput" 
+            placeholder="en"
+            maxlength="5"
+          />
+          <p class="info-text">Language code to use when notes are displayed (translation). Default: "en" (English)</p>
+        </div>
+      </div>
+
+      <!-- Language Settings Card -->
+      <div class="card">
+        <h3>
+          Language Settings
+        </h3>
+        <div class="form-group">
+          <label for="defaultLyricLanguageInput">Default Lyric Language</label>
+          <input 
+            type="text" 
+            id="defaultLyricLanguageInput" 
+            placeholder="nl"
+            maxlength="5"
+          />
+          <p class="info-text">Default language code for lyrics sent to Kefas (e.g., "nl", "en", "de", "fr"). Default: "nl" (Dutch)</p>
+        </div>
       </div>
 
       <!-- Stream Reconnection Card -->

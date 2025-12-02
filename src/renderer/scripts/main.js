@@ -6,6 +6,8 @@ const DEFAULT_PORT = '55056';
 const DEFAULT_NOTES_TRIGGER = 'Current Slide Notes';
 const DEFAULT_MAX_RECONNECT = '3';
 const DEFAULT_RECONNECT_DELAY = '5000';
+const DEFAULT_LYRIC_LANGUAGE = 'nl';
+const DEFAULT_ALTERNATE_LANGUAGE = 'en';
 
 const logEl = document.getElementById('log');
 const startBtn = document.getElementById('start');
@@ -172,8 +174,10 @@ startBtn.addEventListener('click', () => {
   const notesTrigger = localStorage.getItem('notesTrigger') || DEFAULT_NOTES_TRIGGER;
   const maxReconnect = parseInt(localStorage.getItem('maxReconnectAttempts') || DEFAULT_MAX_RECONNECT);
   const reconnectDelay = parseInt(localStorage.getItem('reconnectDelayMs') || DEFAULT_RECONNECT_DELAY);
+  const defaultLyricLanguage = localStorage.getItem('defaultLyricLanguage') || DEFAULT_LYRIC_LANGUAGE;
+  const alternateLanguage = localStorage.getItem('alternateLanguage') || DEFAULT_ALTERNATE_LANGUAGE;
   appendLog('Start requested.');
-  window.bridgeAPI.start(token, host, port, useNotes, notesTrigger, maxReconnect, reconnectDelay);
+  window.bridgeAPI.start(token, host, port, useNotes, notesTrigger, maxReconnect, reconnectDelay, defaultLyricLanguage, alternateLanguage);
 });
 
 stopBtn.addEventListener('click', () => {

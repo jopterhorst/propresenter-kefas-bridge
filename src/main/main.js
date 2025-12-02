@@ -438,7 +438,7 @@ app.whenReady().then(() => {
 });
 
 // IPC: handle start/stop from renderer
-ipcMain.handle('bridge:start', (event, token, host, port, useNotes, notesTrigger, maxReconnect, reconnectDelay) => {
+ipcMain.handle('bridge:start', (event, token, host, port, useNotes, notesTrigger, maxReconnect, reconnectDelay, defaultLyricLanguage, alternateLanguage) => {
   try {
     startBridge(token, host, port, (msg) => {
       // send log messages back to both windows
@@ -452,7 +452,7 @@ ipcMain.handle('bridge:start', (event, token, host, port, useNotes, notesTrigger
       // also send status update when connection status changes
       const status = getBridgeStatus();
       broadcastToWindows('bridge:status', status);
-    }, maxReconnect, reconnectDelay);
+    }, maxReconnect, reconnectDelay, defaultLyricLanguage, alternateLanguage);
     
     // Send initial status update immediately after starting
     const status = getBridgeStatus();

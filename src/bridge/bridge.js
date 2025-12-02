@@ -70,6 +70,8 @@ let onStatusCallback = null;
 let onConnectionStatusCallback = null;
 let useNotes = false;
 let notesTrigger = 'Current Slide Notes';
+let defaultLyricLanguage = 'nl';
+let alternateLanguage = 'en';
 let streamAbortController = null;
 let streamFailureCount = 0;
 let streamReconnectTimeout = null;
@@ -98,25 +100,30 @@ function updateConnectionStatus(status, details = '') {
 /**
  * Sends lyric content to the Kefas API
  * @param {string} content - The lyric content to send
+ * @param {boolean} isFromNotes - Whether the content is from notes (uses alternate language)
  * @returns {Promise<Object>} The JSON response from Kefas API
  * @throws {Error} If token is not configured or API request fails
  */
-async function sendToKefas(content) {
+async function sendToKefas(content, isFromNotes = false) {
   if (!kefasToken) {
     throw new Error('Kefas token not configured. Please set your token in settings.');
   }
 
   const url = `${KEFAS_BASE_URL}/api/public/meetings/${KEFAS_MEETING_ID}/messages`;
   
-  writeDebugLog(`[SEND] Sending to Kefas - length: ${content.length} chars`);
-  writeDebugLog(`[SEND] Content: "${content.substring(0, 200)}${content.length > 200 ? '...' : ''}"`);  const startTime = Date.now();
+  // Use alternate language when content is from notes, otherwise use default lyric language
+  const language = isFromNotes ? alternateLanguage : defaultLyricLanguage;
+  
+  writeDebugLog(`[SEND] Sending to Kefas - length: ${content.length} chars, language: ${language}, from notes: ${isFromNotes}`);
+  writeDebugLog(`[SEND] Content: "${content.substring(0, 200)}${content.length > 200 ? '...' : ''}"`);
+  const startTime = Date.now();
   const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${kefasToken}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, language }),
   });
   const duration = Date.now() - startTime;
 
@@ -137,12 +144,12 @@ async function sendToKefas(content) {
  * Extracts the current lyric text from ProPresenter status JSON
  * Checks multiple possible locations and optionally uses notes instead of text
  * @param {Object} statusJson - The status JSON object from ProPresenter
- * @returns {string|null} The extracted lyric text or null if not found
+ * @returns {{content: string|null, isFromNotes: boolean}} Object with extracted lyric text and whether it's from notes
  */
 function extractCurrentLyric(statusJson) {
   if (!statusJson) {
     writeDebugLog(`[EXTRACT] Status JSON is null/undefined`);
-    return null;
+    return { content: null, isFromNotes: false };
   }
 
   // Check multiple possible locations where ProPresenter might put the slide text
@@ -157,7 +164,7 @@ function extractCurrentLyric(statusJson) {
   
   if (!text) {
     writeDebugLog(`[EXTRACT] No text found in any candidate field`);
-    return null;
+    return { content: null, isFromNotes: false };
   }
 
   if (Array.isArray(text)) {
@@ -172,7 +179,7 @@ function extractCurrentLyric(statusJson) {
   // If text is exactly the trigger string, treat as empty
   if (useNotes && text === notesTrigger) {
     writeDebugLog(`[EXTRACT] Text is exactly the notes trigger, treating as empty slide`);
-    return null;
+    return { content: null, isFromNotes: false };
   }
 
   // Check if text contains the configured trigger string and useNotes is enabled
@@ -201,13 +208,15 @@ function extractCurrentLyric(statusJson) {
       
       if (notes) {
         text = notes;
-        writeDebugLog(`[EXTRACT] Using notes instead of text: "${text.substring(0, 150)}${text.length > 150 ? '...' : ''}"`);
+        writeDebugLog(`[EXTRACT] Using notes instead of text: "${text.substring(0, 150)}${text.length > 150 ? '...' : ''}"}`);
+        writeDebugLog(`[EXTRACT] Final extracted text: ${text ? `"${text.substring(0, 150)}${text.length > 150 ? '...' : ''}"` : 'NULL'}`);
+        return { content: text, isFromNotes: true };
       }
     }
   }
 
   writeDebugLog(`[EXTRACT] Final extracted text: ${text ? `"${text.substring(0, 150)}${text.length > 150 ? '...' : ''}"` : 'NULL'}`);
-  return text || null;
+  return { content: text || null, isFromNotes: false };
 }
 
 /**
@@ -220,7 +229,7 @@ async function processSlideUpdate(slideData) {
   try {
     writeDebugLog(`[STREAM] Received slide update`);
     
-    const lyric = extractCurrentLyric(slideData);
+    const { content: lyric, isFromNotes } = extractCurrentLyric(slideData);
 
     if (!lyric) {
       writeDebugLog(`[STREAM] No lyric found on current slide`);
@@ -245,11 +254,13 @@ async function processSlideUpdate(slideData) {
     writeDebugLog(`[STREAM] Previous lyric: "${lastSentLyric?.substring(0, 100) || 'none'}..."`);
     writeDebugLog(`[STREAM] New lyric: "${lyric.substring(0, 100)}..."`);
     writeDebugLog(`[STREAM] Content: "${lyric.substring(0, 200)}${lyric.length > 200 ? '...' : ''}"`);
-    updateStatus(`Sending: ${lyric.substring(0, 50)}${lyric.length > 50 ? '...' : ''}`);
-    await sendToKefas(lyric);
+    
+    const language = isFromNotes ? alternateLanguage : defaultLyricLanguage;
+    updateStatus(`Sending (${language}): ${lyric.substring(0, 50)}${lyric.length > 50 ? '...' : ''}`);
+    await sendToKefas(lyric, isFromNotes);
     lastSentLyric = lyric;
     writeDebugLog(`[STREAM] Successfully sent to Kefas`);
-    updateStatus('Sent to Kefas successfully.');
+    updateStatus(`Sent (${language}) to Kefas successfully.`);
   } catch (err) {
     updateStatus(`Error: ${err.message}`);
     writeDebugLog(`[STREAM] Error processing slide: ${err.message}`);
@@ -413,8 +424,10 @@ function handleStreamFailure(errorMsg) {
  * @param {Function|null} [onConnectionStatus=null] - Callback for connection status updates
  * @param {number} [maxReconnectParam=3] - Maximum reconnection attempts
  * @param {number} [reconnectDelayParam=5000] - Delay in milliseconds between reconnection attempts
+ * @param {string} [defaultLyricLanguageParam='nl'] - Default language code for lyrics
+ * @param {string} [alternateLanguageParam='en'] - Language code to use when notes are displayed
  */
-function startBridge(token, host, port, onStatus, useNotesParam = false, notesTriggerParam = 'Current Slide Notes', onConnectionStatus = null, maxReconnectParam = 3, reconnectDelayParam = 5000) {
+function startBridge(token, host, port, onStatus, useNotesParam = false, notesTriggerParam = 'Current Slide Notes', onConnectionStatus = null, maxReconnectParam = 3, reconnectDelayParam = 5000, defaultLyricLanguageParam = 'nl', alternateLanguageParam = 'en') {
   // Create a new timestamped log file for this session
   DEBUG_LOG_FILE = createSessionLogFile();
   
@@ -463,6 +476,7 @@ function startBridge(token, host, port, onStatus, useNotesParam = false, notesTr
   writeDebugLog(`Use Notes: ${useNotesParam}, Trigger: "${notesTriggerParam}"`);
   writeDebugLog(`Max Reconnect Attempts: ${maxReconnect}`);
   writeDebugLog(`Reconnect Delay: ${reconnectDelay}ms`);
+  writeDebugLog(`Default Lyric Language: ${defaultLyricLanguageParam || 'nl'}, Alternate Language: ${alternateLanguageParam || 'en'}`);
   
   // Set the ProPresenter API host and port from settings
   PRO_API_HOST = host.trim();
@@ -471,6 +485,8 @@ function startBridge(token, host, port, onStatus, useNotesParam = false, notesTr
   kefasToken = token.trim();
   useNotes = useNotesParam || false;
   notesTrigger = notesTriggerParam || 'Current Slide Notes';
+  defaultLyricLanguage = defaultLyricLanguageParam || 'nl';
+  alternateLanguage = alternateLanguageParam || 'en';
   isRunning = true;
   onStatusCallback = onStatus;
   onConnectionStatusCallback = onConnectionStatus;

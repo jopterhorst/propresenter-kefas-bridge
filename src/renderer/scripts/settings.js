@@ -6,6 +6,8 @@ const DEFAULT_PORT = '55056';
 const DEFAULT_NOTES_TRIGGER = 'Current Slide Notes';
 const DEFAULT_MAX_RECONNECT = '3';
 const DEFAULT_RECONNECT_DELAY_SECONDS = '5';
+const DEFAULT_LYRIC_LANGUAGE = 'nl';
+const DEFAULT_ALTERNATE_LANGUAGE = 'en';
 const MIN_PORT = 1;
 const MAX_PORT = 65535;
 const MIN_RECONNECT_ATTEMPTS = 1;
@@ -21,6 +23,8 @@ const maxReconnectInput = document.getElementById('maxReconnectInput');
 const reconnectDelayInput = document.getElementById('reconnectDelayInput');
 const saveBtn = document.getElementById('saveBtn');
 const hostInput = document.getElementById('hostInput');
+const defaultLyricLanguageInput = document.getElementById('defaultLyricLanguageInput');
+const alternateLanguageInput = document.getElementById('alternateLanguageInput');
 
 // Load settings from localStorage on startup
 function loadSettings() {
@@ -46,6 +50,12 @@ function loadSettings() {
   
   const reconnectDelay = localStorage.getItem('reconnectDelayMs');
   reconnectDelayInput.value = (reconnectDelay ? parseInt(reconnectDelay) / 1000 : DEFAULT_RECONNECT_DELAY_SECONDS);
+  
+  const defaultLyricLanguage = localStorage.getItem('defaultLyricLanguage');
+  defaultLyricLanguageInput.value = defaultLyricLanguage || DEFAULT_LYRIC_LANGUAGE;
+  
+  const alternateLanguage = localStorage.getItem('alternateLanguage');
+  alternateLanguageInput.value = alternateLanguage || DEFAULT_ALTERNATE_LANGUAGE;
 }
 
 // Save settings to localStorage
@@ -86,6 +96,18 @@ function saveSettings() {
     return;
   }
   
+  const defaultLyricLanguage = defaultLyricLanguageInput.value.trim();
+  if (!defaultLyricLanguage) {
+    alert('Default lyric language cannot be empty.');
+    return;
+  }
+  
+  const alternateLanguage = alternateLanguageInput.value.trim();
+  if (!alternateLanguage) {
+    alert('Alternate language cannot be empty.');
+    return;
+  }
+  
   localStorage.setItem('kefasToken', token);
   localStorage.setItem('proPresenterHost', host);
   localStorage.setItem('proPresenterPort', port);
@@ -93,6 +115,8 @@ function saveSettings() {
   localStorage.setItem('notesTrigger', notesTrigger);
   localStorage.setItem('maxReconnectAttempts', maxReconnect);
   localStorage.setItem('reconnectDelayMs', reconnectDelay * 1000);
+  localStorage.setItem('defaultLyricLanguage', defaultLyricLanguage);
+  localStorage.setItem('alternateLanguage', alternateLanguage);
   
   window.close();
 }

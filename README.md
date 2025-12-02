@@ -83,8 +83,10 @@ Click **Save Settings**.
 | Kefas Token | — | Required |
 | ProPresenter Host | 127.0.0.1 | IP or hostname of ProPresenter machine |
 | ProPresenter Port | 55056 | Network API port (55056 for ProPresenter 7+) |
+| Default Lyric Language | nl | Language code for regular lyrics (e.g., nl, en, de, fr) |
 | Use Notes Instead | Off | Use slide notes when triggered |
 | Notes Trigger | "Current Slide Notes" | Trigger string |
+| Alternate Language (Notes) | en | Language code for translations in notes field |
 | Max Reconnection Attempts | 3 | Number of times to retry if connection drops |
 | Reconnection Delay | 5 seconds | Wait time between reconnection attempts |
 
@@ -104,13 +106,13 @@ By default, the app sends the slide's main text to Kefas. You can enable **Use N
 
 This is useful when you have **bilingual lyrics** in ProPresenter:
 - Main text contains both original language and translation
-- Notes field contains only the original language
-- You want Kefas to display only the original language
+- Notes field contains only the translation
+- You want Kefas to display the translation in a different language
 
 **Example:**
-- Slide text: "Amazing Grace (Geweldige Genade)"
-- Slide notes: "Amazing Grace"
-- With notes enabled, only "Amazing Grace" sends to Kefas
+- Slide text: "Geweldige Genade" (Dutch lyrics)
+- Slide notes: "Amazing Grace" (English translation)
+- With notes enabled, the English translation sends to Kefas with the alternate language code
 
 ### How It Works
 
@@ -127,6 +129,23 @@ When you use ProPresenter's slide notes feature with bilingual content:
    - Change this if you use a custom ProPresenter template with a different label
 
 When the app detects the trigger string in the slide text, it automatically uses the notes field instead of the main text.
+
+## Language Settings
+
+The app supports sending lyrics to Kefas with the appropriate language code based on the Kefas API specification:
+
+- **Default Lyric Language** (default: `nl`) — Language code used for regular slide text
+- **Alternate Language for Notes** (default: `en`) — Language code used when notes are displayed (translations)
+
+The language code is automatically included in the API request to Kefas. When you send lyrics:
+- Regular slide text uses the **Default Lyric Language** setting
+- Slide notes (when enabled) use the **Alternate Language** setting
+
+The activity log will show which language is being sent, for example:
+- `Sending (nl): lyrics text...`
+- `Sending (en): translation text...`
+
+Supported language codes follow ISO 639-1/639-2 standards (135+ languages supported by Kefas API).
 
 ## Connection Status
 
@@ -229,4 +248,4 @@ MIT License - See LICENSE file for details
 
 ## Version
 
-Current version: **2025.11.3**
+Current version: **2025.11.5**
