@@ -105,7 +105,7 @@ Click **Save Settings**.
 The app can automatically find ProPresenter instances running on your network. In Settings, click **Auto-Discover** to scan for available instances. The discovery uses two strategies:
 
 - **mDNS/Bonjour** — Browses for ProPresenter services advertised on the local network
-- **HTTP probing** — Checks common ProPresenter API ports on localhost by hitting the `/v1/version` endpoint
+- **HTTP probing** — Checks common ProPresenter API ports on localhost by hitting the `/version` endpoint (ProPresenter 19+) or `/v1/version` (older versions)
 
 Discovered instances are shown as clickable items displaying the machine name, ProPresenter version, and host:port. Click one to fill in the host and port fields automatically.
 
