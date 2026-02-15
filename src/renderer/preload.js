@@ -72,6 +72,13 @@ contextBridge.exposeInMainWorld('bridgeAPI', {
   },
 });
 
+// Discovery API
+contextBridge.exposeInMainWorld('discoveryAPI', {
+  find() {
+    return ipcRenderer.invoke('discovery:find');
+  },
+});
+
 // Clipboard API
 contextBridge.exposeInMainWorld('clipboard', {
   readText() {

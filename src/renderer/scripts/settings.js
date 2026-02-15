@@ -25,6 +25,8 @@ const saveBtn = document.getElementById('saveBtn');
 const hostInput = document.getElementById('hostInput');
 const defaultLyricLanguageInput = document.getElementById('defaultLyricLanguageInput');
 const alternateLanguageInput = document.getElementById('alternateLanguageInput');
+const discoverBtn = document.getElementById('discoverBtn');
+const discoveryResults = document.getElementById('discoveryResults');
 
 // Load settings from localStorage on startup
 function loadSettings() {
@@ -154,6 +156,54 @@ function setupPasswordToggles() {
   });
 }
 
+// Auto-discover ProPresenter instances
+async function runDiscovery() {
+  discoverBtn.disabled = true;
+  discoverBtn.textContent = 'Scanning...';
+  discoveryResults.style.display = 'none';
+  discoveryResults.innerHTML = '';
+
+  try {
+    const response = await window.discoveryAPI.find();
+    if (response.success && response.data.length > 0) {
+      discoveryResults.style.display = 'block';
+      for (const instance of response.data) {
+        const item = document.createElement('div');
+        item.className = 'discovery-item';
+        const versionText = instance.version ? ` - ${instance.version}` : '';
+        item.innerHTML =
+          '<div class="discovery-item-info">' +
+            '<span class="discovery-item-name">' + escapeHTML(instance.name + versionText) + '</span>' +
+            '<span class="discovery-item-detail">' + escapeHTML(instance.host) + ':' + instance.port + '</span>' +
+          '</div>' +
+          '<span class="discovery-item-select">Select</span>';
+        item.addEventListener('click', () => {
+          hostInput.value = instance.host;
+          portInput.value = instance.port;
+          discoveryResults.style.display = 'none';
+        });
+        discoveryResults.appendChild(item);
+      }
+    } else {
+      discoveryResults.style.display = 'block';
+      discoveryResults.innerHTML = '<div class="discovery-empty">No ProPresenter instances found. Make sure ProPresenter is running with networking enabled.</div>';
+    }
+  } catch (err) {
+    discoveryResults.style.display = 'block';
+    discoveryResults.innerHTML = '<div class="discovery-empty">Discovery failed: ' + escapeHTML(err.message) + '</div>';
+  }
+
+  discoverBtn.disabled = false;
+  discoverBtn.textContent = 'Auto-Discover';
+}
+
+function escapeHTML(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+discoverBtn.addEventListener('click', runDiscovery);
 saveBtn.addEventListener('click', saveSettings);
 
 // Initialize
