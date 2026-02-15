@@ -2,7 +2,8 @@
 //
 // Two discovery strategies:
 // 1. mDNS/Bonjour: Browse for ProPresenter services advertised on the local network
-// 2. HTTP probe: Hit the /v1/version endpoint on localhost across common ports
+// 2. HTTP probe: Hit the version endpoint on localhost across common ports
+//    (tries /version for ProPresenter 19+ and /v1/version for older versions)
 
 const http = require('http');
 
@@ -26,16 +27,20 @@ const HTTP_PROBE_TIMEOUT_MS = 1500;
 const MDNS_BROWSE_TIMEOUT_MS = 4000;
 const OVERALL_TIMEOUT_MS = 6000;
 
+// Version endpoint paths to try (ProPresenter 19+ uses /version, older uses /v1/version)
+const VERSION_PATHS = ['/version', '/v1/version'];
+
 /**
- * Probes a single host:port for a ProPresenter /v1/version endpoint
+ * Probes a single host:port/path for a ProPresenter version endpoint
  * @param {string} host - Hostname or IP to probe
  * @param {number} port - Port number to probe
+ * @param {string} versionPath - The path to probe (e.g. '/version' or '/v1/version')
  * @returns {Promise<Object|null>} Discovered instance or null
  */
-function probePort(host, port) {
+function probePath(host, port, versionPath) {
   return new Promise((resolve) => {
     const req = http.get(
-      `http://${host}:${port}/v1/version`,
+      `http://${host}:${port}${versionPath}`,
       { timeout: HTTP_PROBE_TIMEOUT_MS },
       (res) => {
         let data = '';
@@ -70,6 +75,21 @@ function probePort(host, port) {
       resolve(null);
     });
   });
+}
+
+/**
+ * Probes a single host:port for a ProPresenter version endpoint,
+ * trying multiple paths (/version and /v1/version)
+ * @param {string} host - Hostname or IP to probe
+ * @param {number} port - Port number to probe
+ * @returns {Promise<Object|null>} Discovered instance or null
+ */
+async function probePort(host, port) {
+  for (const versionPath of VERSION_PATHS) {
+    const result = await probePath(host, port, versionPath);
+    if (result) return result;
+  }
+  return null;
 }
 
 /**
