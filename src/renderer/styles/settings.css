@@ -176,6 +176,84 @@ button {
   line-height: 1.5;
 }
 
+.btn-discover {
+  background: linear-gradient(135deg, #007aff 0%, #005ecb 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
+}
+
+.btn-discover:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 122, 255, 0.4);
+}
+
+.btn-discover:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.2);
+}
+
+.btn-discover:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.discovery-results {
+  margin-top: 10px;
+}
+
+.discovery-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  margin-top: 6px;
+  border-radius: 8px;
+  background: rgba(0, 122, 255, 0.06);
+  border: 1px solid rgba(0, 122, 255, 0.15);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.discovery-item:hover {
+  background: rgba(0, 122, 255, 0.12);
+  border-color: rgba(0, 122, 255, 0.3);
+}
+
+.discovery-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.discovery-item-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+.discovery-item-detail {
+  font-size: 11px;
+  color: #6f6f77;
+}
+
+.discovery-item-select {
+  font-size: 12px;
+  font-weight: 600;
+  color: #007aff;
+}
+
+.discovery-empty {
+  padding: 10px 12px;
+  margin-top: 6px;
+  border-radius: 8px;
+  background: rgba(255, 59, 48, 0.06);
+  border: 1px solid rgba(255, 59, 48, 0.15);
+  font-size: 12px;
+  color: #86868b;
+  text-align: center;
+}
+
 /* Dark mode support */
 @media (prefers-color-scheme: dark) {
   body {
@@ -234,5 +312,25 @@ button {
 
   .password-toggle-btn:hover {
     color: #f5f5f7;
+  }
+
+  .discovery-item {
+    background: rgba(0, 122, 255, 0.1);
+    border-color: rgba(0, 122, 255, 0.2);
+  }
+
+  .discovery-item:hover {
+    background: rgba(0, 122, 255, 0.18);
+    border-color: rgba(0, 122, 255, 0.35);
+  }
+
+  .discovery-item-name {
+    color: #f5f5f7;
+  }
+
+  .discovery-empty {
+    background: rgba(255, 59, 48, 0.1);
+    border-color: rgba(255, 59, 48, 0.2);
+    color: #a1a1a6;
   }
 }

@@ -40,9 +40,9 @@
         </h3>
         <div class="form-group">
           <label for="hostInput">API Host / IP Address</label>
-          <input 
-            type="text" 
-            id="hostInput" 
+          <input
+            type="text"
+            id="hostInput"
             placeholder="127.0.0.1"
           />
           <p class="info-text">IP address or hostname of the ProPresenter machine. Default: 127.0.0.1 (localhost)</p>
@@ -50,14 +50,20 @@
 
         <div class="form-group" style="margin-top: 12px; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 12px;">
           <label for="portInput">API Port</label>
-          <input 
-            type="number" 
-            id="portInput" 
+          <input
+            type="number"
+            id="portInput"
             placeholder="55056"
             min="1"
             max="65535"
           />
           <p class="info-text">Default port is 55056. Change if ProPresenter is running on a different port.</p>
+        </div>
+
+        <div class="form-group" style="margin-top: 12px; border-top: 1px solid rgba(0,0,0,0.08); padding-top: 12px;">
+          <button type="button" class="btn-discover" id="discoverBtn">Auto-Discover</button>
+          <div id="discoveryResults" class="discovery-results" style="display: none;"></div>
+          <p class="info-text">Scan the local network for running ProPresenter instances.</p>
         </div>
       </div>
 

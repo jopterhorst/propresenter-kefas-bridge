@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 
 const { initializeLogPath, startBridge, stopBridge, getBridgeStatus } = require('../bridge/bridge.js');
+const { discoverProPresenter } = require('../bridge/discovery.js');
 
 // Constants
 const WINDOW_STATE_SAVE_DEBOUNCE_MS = 500;
@@ -527,6 +528,16 @@ ipcMain.handle('clipboard:writeText', (event, text) => {
     return { success: true, data: null };
   } catch (err) {
     console.error('Failed to write clipboard:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('discovery:find', async () => {
+  try {
+    const instances = await discoverProPresenter();
+    return { success: true, data: instances };
+  } catch (err) {
+    console.error('Failed to discover ProPresenter:', err);
     return { success: false, error: err.message };
   }
 });

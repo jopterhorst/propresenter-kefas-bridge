@@ -10,11 +10,12 @@ This app connects to ProPresenter via HTTP streaming and automatically sends the
 
 ## Features
 
-✨ **Real-time streaming** — No polling, instant synchronization  
-🔄 **Auto-reconnection** — Automatically reconnects if connection drops  
-🌐 **Cross-platform** — Works on macOS, Windows, and Linux  
-🔒 **Secure** — Content Security Policy and proper sandboxing  
-📝 **Bilingual support** — Use slide notes for translation workflows  
+✨ **Real-time streaming** — No polling, instant synchronization
+🔍 **Auto-discovery** — Automatically find ProPresenter on your network
+🔄 **Auto-reconnection** — Automatically reconnects if connection drops
+🌐 **Cross-platform** — Works on macOS, Windows, and Linux
+🔒 **Secure** — Content Security Policy and proper sandboxing
+📝 **Bilingual support** — Use slide notes for translation workflows
 🎨 **Native UI** — Clean, native-looking interface with dark mode support  
 
 ## Requirements
@@ -67,6 +68,8 @@ Enter in the app Settings:
 - **ProPresenter Host** — IP address or hostname (default: 127.0.0.1)
 - **ProPresenter Port** — Usually `55056` for ProPresenter 7+, or `50001` for some setups
 
+Or click **Auto-Discover** to automatically find running ProPresenter instances on your network. The app will scan for ProPresenter using mDNS/Bonjour and by probing common ports. Select a discovered instance to fill in the host and port automatically.
+
 Click **Save Settings**.
 
 ### 5. Start
@@ -83,6 +86,7 @@ Click **Save Settings**.
 | Kefas Token | — | Required |
 | ProPresenter Host | 127.0.0.1 | IP or hostname of ProPresenter machine |
 | ProPresenter Port | 55056 | Network API port (55056 for ProPresenter 7+) |
+| Auto-Discover | — | Scan the network for running ProPresenter instances |
 | Default Lyric Language | nl | Language code for regular lyrics (e.g., nl, en, de, fr) |
 | Use Notes Instead | Off | Use slide notes when triggered |
 | Notes Trigger | "Current Slide Notes" | Trigger string |
@@ -95,6 +99,17 @@ Click **Save Settings**.
 ![Settings Page 1](img/settings1.png)
 
 ![Settings Page 2](img/settings2.png)
+
+## Auto-Discovery
+
+The app can automatically find ProPresenter instances running on your network. In Settings, click **Auto-Discover** to scan for available instances. The discovery uses two strategies:
+
+- **mDNS/Bonjour** — Browses for ProPresenter services advertised on the local network
+- **HTTP probing** — Checks common ProPresenter API ports on localhost by hitting the `/v1/version` endpoint
+
+Discovered instances are shown as clickable items displaying the machine name, ProPresenter version, and host:port. Click one to fill in the host and port fields automatically.
+
+This is especially useful when the ProPresenter port changes between sessions or when ProPresenter is running on a different machine on the network.
 
 ## Using Notes Instead of Text
 
@@ -176,10 +191,12 @@ This ensures the app doesn't consume resources trying to connect to an unavailab
 - Make sure ProPresenter is running on the configured host and port
 - Check that Network is enabled in ProPresenter → Network
 - Verify the host/IP address is correct and reachable
+- Try using **Auto-Discover** in Settings to find the correct host and port
 
 ### Connection errors
 - Ensure ProPresenter's Network is enabled
 - Verify the port number is correct (default: 55056 for ProPresenter 7+)
+- Use **Auto-Discover** in Settings to detect the correct port if it has changed
 - Try accessing `http://localhost:55056/v1/status/slide` in your browser to verify the API is working
 
 ### Lyrics not syncing
@@ -248,4 +265,4 @@ MIT License - See LICENSE file for details
 
 ## Version
 
-Current version: **2025.11.5**
+Current version: **2026.2.0**
