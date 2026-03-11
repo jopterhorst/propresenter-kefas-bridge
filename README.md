@@ -68,7 +68,7 @@ Enter in the app Settings:
 - **ProPresenter Host** — IP address or hostname (default: 127.0.0.1)
 - **ProPresenter Port** — Usually `55056` for ProPresenter 7+, or `50001` for some setups
 
-Or click **Auto-Discover** to automatically find running ProPresenter instances on your network. The app will scan for ProPresenter using mDNS/Bonjour and by probing common ports. Select a discovered instance to fill in the host and port automatically.
+Or click **Auto-Discover** to automatically find running ProPresenter instances on your network. The app scans using mDNS/Bonjour across local network interfaces and probes common localhost ports. Select a discovered instance to fill in the host and port automatically.
 
 Click **Save Settings**.
 
@@ -104,7 +104,7 @@ Click **Save Settings**.
 
 The app can automatically find ProPresenter instances running on your network. In Settings, click **Auto-Discover** to scan for available instances. The discovery uses two strategies:
 
-- **mDNS/Bonjour** — Browses for ProPresenter services advertised on the local network
+- **mDNS/Bonjour** — Browses for ProPresenter services advertised on the local network across local interfaces (improves multi-NIC discovery)
 - **HTTP probing** — Checks common ProPresenter API ports on localhost by hitting the `/version` endpoint (ProPresenter 19+) or `/v1/version` (older versions)
 
 Discovered instances are shown as clickable items displaying the machine name, ProPresenter version, and host:port. Click one to fill in the host and port fields automatically.
@@ -265,4 +265,4 @@ MIT License - See LICENSE file for details
 
 ## Version
 
-Current version: **2026.2.0**
+Current version: **2026.3.0**

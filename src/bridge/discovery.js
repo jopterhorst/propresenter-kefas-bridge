@@ -6,6 +6,7 @@
 //    (tries /version for ProPresenter 19+ and /v1/version for older versions)
 
 const http = require('http');
+const os = require('os');
 
 // Common ProPresenter API ports to probe
 const PROBE_PORTS = [
@@ -24,11 +25,54 @@ const MDNS_SERVICE_TYPES = [
 ];
 
 const HTTP_PROBE_TIMEOUT_MS = 1500;
-const MDNS_BROWSE_TIMEOUT_MS = 4000;
-const OVERALL_TIMEOUT_MS = 6000;
+const MDNS_BROWSE_TIMEOUT_MS = 6000;
+const OVERALL_TIMEOUT_MS = 8000;
 
 // Version endpoint paths to try (ProPresenter 19+ uses /version, older uses /v1/version)
 const VERSION_PATHS = ['/version', '/v1/version'];
+
+function isIPv4Address(value) {
+  if (typeof value !== 'string') return false;
+  const parts = value.split('.');
+  if (parts.length !== 4) return false;
+  return parts.every((part) => {
+    if (!/^\d+$/.test(part)) return false;
+    const n = Number(part);
+    return n >= 0 && n <= 255;
+  });
+}
+
+function getLocalIPv4Interfaces() {
+  const interfaces = os.networkInterfaces();
+  const addresses = new Set();
+
+  for (const iface of Object.values(interfaces)) {
+    if (!Array.isArray(iface)) continue;
+    for (const entry of iface) {
+      const isIPv4 = entry?.family === 'IPv4' || entry?.family === 4;
+      const address = entry?.address;
+      if (!isIPv4 || !address) continue;
+      if (entry.internal) continue;
+      if (address.startsWith('127.')) continue;
+      if (address.startsWith('169.254.')) continue;
+      addresses.add(address);
+    }
+  }
+
+  return Array.from(addresses);
+}
+
+function getPreferredServiceHost(service) {
+  if (Array.isArray(service?.addresses)) {
+    const address = service.addresses.find((addr) => isIPv4Address(addr));
+    if (address) return address;
+  }
+
+  const refererAddress = service?.referer?.address;
+  if (isIPv4Address(refererAddress)) return refererAddress;
+
+  return service?.host || null;
+}
 
 /**
  * Probes a single host:port/path for a ProPresenter version endpoint
@@ -125,51 +169,65 @@ async function discoverViaMDNS() {
 
   return new Promise((resolve) => {
     const discovered = [];
-    const bonjour = new Bonjour();
-    const browsers = [];
+    const discoveredKeys = new Set();
+    const sessions = [];
+    const interfaceAddresses = getLocalIPv4Interfaces();
+    const browseInterfaces = interfaceAddresses.length > 0 ? interfaceAddresses : [null];
+
+    for (const ifaceAddress of browseInterfaces) {
+      try {
+        const bonjour = ifaceAddress ? new Bonjour({ interface: ifaceAddress }) : new Bonjour();
+        sessions.push({ bonjour, browsers: [] });
+      } catch (_) {
+        // Individual interface init failure, continue with others
+      }
+    }
+
+    if (sessions.length === 0) {
+      return resolve([]);
+    }
 
     const cleanup = () => {
-      browsers.forEach((b) => {
-        try { b.stop(); } catch (_) { /* ignore */ }
+      sessions.forEach(({ bonjour, browsers }) => {
+        browsers.forEach((browser) => {
+          try { browser.stop(); } catch (_) { /* ignore */ }
+        });
+        try { bonjour.destroy(); } catch (_) { /* ignore */ }
       });
-      try { bonjour.destroy(); } catch (_) { /* ignore */ }
     };
 
-    const timeout = setTimeout(() => {
+    setTimeout(() => {
       cleanup();
       resolve(discovered);
     }, MDNS_BROWSE_TIMEOUT_MS);
 
-    for (const svcType of MDNS_SERVICE_TYPES) {
-      try {
-        const browser = bonjour.find(svcType, (service) => {
-          // Deduplicate by host+port
-          const host = service.host || service.referer?.address;
-          const port = service.port;
+    for (const session of sessions) {
+      for (const svcType of MDNS_SERVICE_TYPES) {
+        try {
+          const browser = session.bonjour.find(svcType, (service) => {
+            const host = getPreferredServiceHost(service);
+            const port = service.port;
 
-          if (!host || !port) return;
+            if (!host || !port) return;
 
-          const alreadyFound = discovered.some(
-            (d) => d.host === host && d.port === port
-          );
-          if (alreadyFound) return;
+            const key = `${host}:${port}`;
+            if (discoveredKeys.has(key)) return;
 
-          discovered.push({
-            host,
-            port,
-            name: service.name || host,
-            version: null,
-            source: 'mdns',
+            discoveredKeys.add(key);
+            discovered.push({
+              host,
+              port,
+              name: service.name || host,
+              version: null,
+              source: 'mdns',
+            });
           });
-        });
-        browsers.push(browser);
-      } catch (_) {
-        // Individual browser failure, continue with others
+          session.browsers.push(browser);
+        } catch (_) {
+          // Individual browser failure, continue with others
+        }
       }
     }
-
-    // If no mDNS services found after timeout, resolve with empty
-    // The timeout above handles this
   });
 }
 
